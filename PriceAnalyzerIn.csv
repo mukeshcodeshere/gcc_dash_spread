@@ -1,0 +1,20 @@
+Name,tickerList,contractMonthsList,yearOffsetList,weightsList,convList,rollFlag,months,desc,group,region,yearsBack
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['V','V']","[0, 0]","[1,-1]","[0.15748,1]",HO,V,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['X','X']","[0, 0]","[1,-1]","[0.15748,1]",HO,X,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['Z','Z']","[0, 0]","[1,-1]","[0.15748,1]",HO,Z,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['F','F']","[0, 0]","[1,-1]","[0.15748,1]",HO,F,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['G','G']","[0, 0]","[1,-1]","[0.15748,1]",HO,G,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['H','H']","[0, 0]","[1,-1]","[0.15748,1]",HO,H,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+TD25 - TC14,"['#ICEWF5M','#ICEWCNM']","['Q','X']","[0, 0]","[1,-1]","[1,1]",HO,Q/X,100%TD25 - 100%TC14,Freight,Global,3
+TD25 - TD20,"['#ICEWF5M','#ICEWACM']","['Q','X']","[0, 0]","[1,-1]","[1,1]",HO,Q/X,100%TD25 - 100%TD20,Freight,Global,3
+TD25 - TC5,"['#ICEWF5M','#ICEWMJM']","['Q','X']","[0, 0]","[1,-1]","[1,1]",HO,Q/X,100%TD25 - 100%TC5,Freight,Global,3
+TD20 - TC20,"['#ICEWACM','#ICEWALM']","['Q','X']","[0, 0]","[1,-1]","[1,1]",HO,Q/X,100%TD20 - 100%TC20,Freight,Global,3
+TD25 - TC14,"['#ICEWF5M','#ICEWCNM']","['M','N']","[0, 0]","[1,-1]","[1,1]",HO,M/N,100%TD25 - 100%TC14,Freight,Global,3
+TD25 - TD20,"['#ICEWF5M','#ICEWACM']","['M','N']","[0, 0]","[1,-1]","[1,1]",HO,M/N,100%TD25 - 100%TD20,Freight,Global,3
+TD25 - TC5,"['#ICEWF5M','#ICEWMJM']","['M','N']","[0, 0]","[1,-1]","[1,1]",HO,M/N,100%TD25 - 100%TC5,Freight,Global,3
+TD20 - TC20,"['#ICEWACM','#ICEWALM']","['M','N']","[0, 0]","[1,-1]","[1,1]",HO,M/N,100%TD20 - 100%TC20,Freight,Global,3
+TD25 - TC14,"['#ICEWF5M','#ICEWCNM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD25 - 100%TC14,Freight,Global,3
+TD25 - TD20,"['#ICEWF5M','#ICEWACM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD25 - 100%TD20,Freight,Global,3
+TD25 - TC5,"['#ICEWF5M','#ICEWMJM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD25 - 100%TC5,Freight,Global,3
+TD20 - TC20,"['#ICEWACM','#ICEWALM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD20 - 100%TC20,Freight,Global,3
+HO Timing ,"['/HO','/HO']","['M','Z']","[0, 0]","[1,-1]","[1,1]",HO,M/Z,100%HOM - 100%HOZ,MiddleDistillates,US,10

@@ -1,0 +1,9 @@
+pandas==2.2.3
+streamlit==1.45.0
+python-dotenv==1.1.0
+pandas_market_calendars==5.1.0
+seaborn==0.13.2
+statsmodels==0.14.4
+scipy==1.15.2
+plotly==6.0.1
+#pywin32

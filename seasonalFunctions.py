@@ -5,6 +5,7 @@ from datetime import timedelta, datetime as dt
 from dotenv import load_dotenv
 from gcc_sparta_library import get_mv_data
 import os 
+import plotly.graph_objects as go
 # Load environment variables from .env file
 load_dotenv('credential.env')
 
@@ -197,3 +198,151 @@ def validate_contract_data(contract_data):
             print(f"{ticker}: Missing {['Weights' if 'Weights' not in contract_data[ticker] else 'Conversion'][0]}")
     else:
         print("\u2705 All tickers have Weights and Conversion.")
+
+# def create_seasonal_spread_plot(filtered_df):
+#     """
+#     Creates a seasonal spread plot based on historical and current data.
+
+#     Args:
+#         filtered_df (pd.DataFrame): DataFrame containing 'Date', 'Year', 'spread', and 'LastTrade' columns.
+
+#     Returns:
+#         go.Figure: Plotly Figure object for the seasonal spread.
+#     """
+#     fig = go.Figure()
+#     seasonal_data = {}
+#     today = pd.Timestamp.today().normalize()
+
+#     historical_df = filtered_df[filtered_df['LastTrade'] <= today].copy()
+#     current_df = filtered_df[filtered_df['LastTrade'] > today].copy()
+
+#     for year in sorted(historical_df['Year'].unique()):
+#         year_group = historical_df[historical_df['Year'] == year].copy()
+#         last_trade = year_group['LastTrade'].max()
+#         year_filtered = year_group[year_group['Date'] <= last_trade].sort_values('Date').tail(252).copy()
+#         if len(year_filtered) == 252:
+#             year_filtered = year_filtered.reset_index(drop=True)
+#             year_filtered['TradingDay'] = range(1, 253)
+#             seasonal_data[str(year)] = year_filtered
+
+#     if not current_df.empty:
+#         last_hist_trade = historical_df['LastTrade'].max() if not historical_df.empty else None
+#         if last_hist_trade is not None and not pd.isna(last_hist_trade):
+#             next_month_start = (last_hist_trade + pd.offsets.MonthBegin(1)).normalize()
+#         else:
+#             next_month_start = current_df['Date'].min().normalize()
+
+#         current_filtered = current_df[current_df['Date'] >= next_month_start].sort_values('Date').head(252).copy()
+#         if not current_filtered.empty:
+#             current_filtered = current_filtered.reset_index(drop=True)
+#             current_filtered['TradingDay'] = range(1, len(current_filtered) + 1)
+#             seasonal_data["Current"] = current_filtered
+
+#     if not seasonal_data:
+#         # Fallback for when no seasonal data can be plotted
+#         fig.add_trace(go.Scatter(
+#             x=filtered_df["Date"],
+#             y=filtered_df["spread"],
+#             mode="lines",
+#             name="All Data (Time Series)",
+#             line=dict(color="lightblue", width=2)
+#         ))
+#         fig.update_layout(
+#             title="Spread Time Series (No Seasonal Data Available)",
+#             xaxis_title="Date",
+#             yaxis_title="Spread",
+#             margin=dict(l=40, r=40, t=60, b=40),
+#             template='plotly_dark'
+#         )
+#     else:
+#         for label, df in seasonal_data.items():
+#             fig.add_trace(go.Scatter(
+#                 x=df["TradingDay"],
+#                 y=df["spread"],
+#                 mode="lines",
+#                 name=label,
+#                 line=dict(color="white" if label == "Current" else None,
+#                          width=3 if label == "Current" else 1.5),
+#                 opacity=1.0 if label == "Current" else 0.6
+#             ))
+
+#         fig.update_layout(
+#             title="Seasonal Spread by Year",
+#             xaxis_title="Trading Day (1 to 252)",
+#             yaxis_title="Spread",
+#             margin=dict(l=40, r=40, t=60, b=40),
+#             legend_title="Season",
+#             template='plotly_dark'
+#         )
+#     return fig
+
+# def create_spread_histogram(filtered_df):
+#     """
+#     Creates a histogram of spread values with statistical markers.
+
+#     Args:
+#         filtered_df (pd.DataFrame): DataFrame containing 'spread' column.
+
+#     Returns:
+#         go.Figure: Plotly Figure object for the spread histogram.
+#     """
+#     hist_fig = go.Figure()
+#     if not filtered_df.empty and 'spread' in filtered_df.columns:
+#         spread_values = filtered_df["spread"].dropna()
+
+#         if not spread_values.empty:
+#             latest_spread = spread_values.iloc[-1]
+#             mean_spread = spread_values.mean()
+#             median_spread = spread_values.median()
+#             std_dev = spread_values.std()
+#             std_dev_1_plus = mean_spread + std_dev
+#             std_dev_1_minus = mean_spread - std_dev
+#             std_dev_2_plus = mean_spread + (2 * std_dev)
+#             std_dev_2_minus = mean_spread - (2 * std_dev)
+
+#             hist_fig.add_trace(go.Histogram(
+#                 x=spread_values,
+#                 marker_color='lightblue',
+#                 nbinsx=50,
+#                 name='Spread Distribution'
+#             ))
+
+#             if latest_spread is not None:
+#                 hist_fig.add_vline(x=latest_spread, line_dash="dash", line_color="orange",
+#                                   annotation_text=f"Latest Spread: {latest_spread:.2f}",
+#                                   annotation_position="top right")
+#             hist_fig.add_vline(x=mean_spread, line_dash="dash", line_color="red",
+#                                 annotation_text=f"Mean: {mean_spread:.2f}",
+#                                 annotation_position="top left")
+#             hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="purple",
+#                                 annotation_text=f"Median: {median_spread:.2f}",
+#                                 annotation_position="top")
+
+#             hist_fig.add_vline(x=std_dev_1_plus, line_dash="dot", line_color="lightgreen",
+#                                 annotation_text=f"+1 Std Dev: {std_dev_1_plus:.2f}",
+#                                 annotation_position="bottom right")
+#             hist_fig.add_vline(x=std_dev_1_minus, line_dash="dot", line_color="lightgreen",
+#                                 annotation_text=f"-1 Std Dev: {std_dev_1_minus:.2f}",
+#                                 annotation_position="bottom left")
+#             hist_fig.add_vline(x=std_dev_2_plus, line_dash="dot", line_color="cyan",
+#                                 annotation_text=f"+2 Std Dev: {std_dev_2_plus:.2f}",
+#                                 annotation_position="bottom right")
+#             hist_fig.add_vline(x=std_dev_2_minus, line_dash="dot", line_color="cyan",
+#                                 annotation_text=f"-2 Std Dev: {std_dev_2_minus:.2f}",
+#                                 annotation_position="bottom left")
+#     else:
+#         # If no data, return an empty histogram
+#         hist_fig.update_layout(
+#             title="No data to display",
+#             template='plotly_dark'
+#         )
+
+#     hist_fig.update_layout(
+#         title="Distribution of Spread (Histogram) with Statistics",
+#         xaxis_title="Spread",
+#         yaxis_title="Frequency",
+#         template="plotly_dark",
+#         margin=dict(l=40, r=40, t=60, b=40),
+#         showlegend=False
+#     )
+#     return hist_fig

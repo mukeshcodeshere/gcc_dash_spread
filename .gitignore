@@ -5,4 +5,4 @@ Raul_logic/
 __pycache__/
 **/__pycache__/
 */__pycache__/
-
+.env

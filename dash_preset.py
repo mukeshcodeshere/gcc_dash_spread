@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from dash import Dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
@@ -154,7 +155,7 @@ def update_figure(group, region, instrument, month):
     fig = go.Figure()
     seasonal_data = {}
 
-    for year in historical_df['Year'].unique():
+    for year in sorted(historical_df['Year'].unique()):
         year_group = historical_df[historical_df['Year'] == year].copy()
         last_trade = year_group['LastTrade'].max()
         year_filtered = year_group[year_group['Date'] <= last_trade].sort_values('Date').tail(252).copy()
@@ -172,40 +173,66 @@ def update_figure(group, region, instrument, month):
             current_filtered['TradingDay'] = range(1, len(current_filtered) + 1)
             seasonal_data["Current"] = current_filtered
 
-    for label, df in seasonal_data.items():
+    if not seasonal_data:
         fig.add_trace(go.Scatter(
-            x=df["TradingDay"],
-            y=df["spread"],
+            x=filtered_df["Date"],
+            y=filtered_df["spread"],
             mode="lines",
-            name=label,
-            line=dict(color="white" if label == "Current" else None,
-                     width=3 if label == "Current" else 1.5),
-            opacity=1.0 if label == "Current" else 0.6
+            name="All Data (Time Series)",
+            line=dict(color="lightblue", width=2)
         ))
+        fig.update_layout(
+            title="Spread Time Series (No Seasonal Data Available)",
+            xaxis_title="Date",
+            yaxis_title="Spread",
+            margin=dict(l=40, r=40, t=60, b=40),
+            template='plotly_dark'
+        )
+    else:
+        for label, df in seasonal_data.items():
+            fig.add_trace(go.Scatter(
+                x=df["TradingDay"],
+                y=df["spread"],
+                mode="lines",
+                name=label,
+                line=dict(color="white" if label == "Current" else None,
+                         width=3 if label == "Current" else 1.5),
+                opacity=1.0 if label == "Current" else 0.6
+            ))
 
-    fig.update_layout(
-        title="Seasonal Spread by Year",
-        xaxis_title="Trading Day (1 to 252)",
-        yaxis_title="Spread",
-        margin=dict(l=40, r=40, t=60, b=40),
-        legend_title="Season",
-        template='plotly_dark'
-    )
+        fig.update_layout(
+            title="Seasonal Spread by Year",
+            xaxis_title="Trading Day (1 to 252)",
+            yaxis_title="Spread",
+            margin=dict(l=40, r=40, t=60, b=40),
+            legend_title="Season",
+            template='plotly_dark'
+        )
 
     hist_fig = go.Figure()
     if not filtered_df.empty and 'spread' in filtered_df.columns:
-        spread_values = filtered_df["spread"].dropna()
+        spread_values = filtered_df["spread"].dropna() # Ensure no NaNs for stats
 
-        if not spread_values.empty:
-            # Calculate statistics
-            latest_spread = spread_values.iloc[-1] if not spread_values.empty else None
+        if not spread_values.empty: # Only proceed if there's data after dropping NaNs
+            # Calculate statistics on the *entire available spread data*
             mean_spread = spread_values.mean()
             median_spread = spread_values.median()
-            std_dev = spread_values.std()
-            std_dev_1_plus = mean_spread + std_dev
-            std_dev_1_minus = mean_spread - std_dev
-            std_dev_2_plus = mean_spread + (2 * std_dev)
-            std_dev_2_minus = mean_spread - (2 * std_dev)
+            std_dev_spread = spread_values.std()
+
+            # Determine the "latest spread" more robustly:
+            # Prefer the latest value from the 'Current' seasonal data if available,
+            # otherwise, use the absolute latest from the entire filtered_df.
+            latest_spread_value = np.nan
+            if "Current" in seasonal_data and not seasonal_data["Current"].empty:
+                latest_spread_value = seasonal_data["Current"]["spread"].iloc[-1]
+            elif not spread_values.empty:
+                latest_spread_value = spread_values.iloc[-1]
+
+            # First and second deviation values
+            first_dev_plus = mean_spread + std_dev_spread
+            first_dev_minus = mean_spread - std_dev_spread
+            second_dev_plus = mean_spread + (2 * std_dev_spread)
+            second_dev_minus = mean_spread - (2 * std_dev_spread)
 
             hist_fig.add_trace(go.Histogram(
                 x=spread_values,
@@ -214,31 +241,38 @@ def update_figure(group, region, instrument, month):
                 name='Spread Distribution'
             ))
 
-            # Add vertical lines for statistics
-            if latest_spread is not None:
-                hist_fig.add_vline(x=latest_spread, line_dash="dash", line_color="orange",
-                                  annotation_text=f"Latest Spread: {latest_spread:.2f}",
-                                  annotation_position="top right")
-            hist_fig.add_vline(x=mean_spread, line_dash="dash", line_color="red",
+            # Add vertical lines and annotations
+            # Mean
+            hist_fig.add_vline(x=mean_spread, line_dash="solid", line_color="red", line_width=2,
                                 annotation_text=f"Mean: {mean_spread:.2f}",
-                                annotation_position="top left")
-            hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="purple",
-                                annotation_text=f"Median: {median_spread:.2f}",
-                                annotation_position="top")
+                                annotation_position="top left", annotation_font_color="red")
 
-            # Standard Deviations
-            hist_fig.add_vline(x=std_dev_1_plus, line_dash="dot", line_color="lightgreen",
-                                annotation_text=f"+1 Std Dev: {std_dev_1_plus:.2f}",
-                                annotation_position="bottom right")
-            hist_fig.add_vline(x=std_dev_1_minus, line_dash="dot", line_color="lightgreen",
-                                annotation_text=f"-1 Std Dev: {std_dev_1_minus:.2f}",
-                                annotation_position="bottom left")
-            hist_fig.add_vline(x=std_dev_2_plus, line_dash="dot", line_color="cyan",
-                                annotation_text=f"+2 Std Dev: {std_dev_2_plus:.2f}",
-                                annotation_position="bottom right")
-            hist_fig.add_vline(x=std_dev_2_minus, line_dash="dot", line_color="cyan",
-                                annotation_text=f"-2 Std Dev: {std_dev_2_minus:.2f}",
-                                annotation_position="bottom left")
+            # Median
+            hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="green", line_width=2,
+                                annotation_text=f"Median: {median_spread:.2f}",
+                                annotation_position="top right", annotation_font_color="green")
+
+            # Latest Spread Value (if valid)
+            if not np.isnan(latest_spread_value):
+                hist_fig.add_vline(x=latest_spread_value, line_dash="dot", line_color="yellow", line_width=2,
+                                    annotation_text=f"Latest: {latest_spread_value:.2f}",
+                                    annotation_position="bottom right", annotation_font_color="yellow")
+
+            # First Standard Deviations
+            hist_fig.add_vline(x=first_dev_plus, line_dash="dot", line_color="orange", line_width=1,
+                                annotation_text=f"+1 Std Dev: {first_dev_plus:.2f}",
+                                annotation_position="top", annotation_font_color="orange")
+            hist_fig.add_vline(x=first_dev_minus, line_dash="dot", line_color="orange", line_width=1,
+                                annotation_text=f"-1 Std Dev: {first_dev_minus:.2f}",
+                                annotation_position="bottom", annotation_font_color="orange")
+
+            # Second Standard Deviations
+            hist_fig.add_vline(x=second_dev_plus, line_dash="dot", line_color="purple", line_width=1,
+                                annotation_text=f"+2 Std Dev: {second_dev_plus:.2f}",
+                                annotation_position="top", annotation_font_color="purple")
+            hist_fig.add_vline(x=second_dev_minus, line_dash="dot", line_color="purple", line_width=1,
+                                annotation_text=f"-2 Std Dev: {second_dev_minus:.2f}",
+                                annotation_position="bottom", annotation_font_color="purple")
 
     hist_fig.update_layout(
         title="Distribution of Spread (Histogram) with Statistics",
@@ -246,7 +280,7 @@ def update_figure(group, region, instrument, month):
         yaxis_title="Frequency",
         template="plotly_dark",
         margin=dict(l=40, r=40, t=60, b=40),
-        showlegend=False # Hide legend for vlines
+        showlegend=False
     )
 
     return fig, hist_fig

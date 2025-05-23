@@ -93,12 +93,8 @@ To securely store and use sensitive credentials (like database connection info),
 
 **Steps:**
 
-1. Create a `credential.env` file:
-
-```bash
-touch .env
-```
-
+1. Create a `credential.env` file in the 'gcc_dash_spread' folder.
+ 
 2. Add the following content to the `credential.env` file (replace values as needed):
 
 ```env
@@ -110,11 +106,7 @@ USERNAME_LOGIN=XXX - MV login item
 PASSWORD_LOGIN=XXX - MV login item
 ```
 
-3. **Do not commit** this file to version control. Add `.env` to your `.gitignore`:
-
-```bash
-echo ".env" >> .gitignore
-```
+3. **Do not upload or commit this credential.env file** 
 
 The application will automatically load these environment variables at runtime using `python-dotenv`.
 

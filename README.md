@@ -85,39 +85,38 @@ pip install -r requirements.txt
 ```
 
 ---
-@@
  ## Step 7: Environment Variable Setup Instructions
 
-+### 🔐 Environment Variables Setup
-+
-+To securely store and use sensitive credentials (like database connection info), create a file named `.env` in the root directory of the project.
-+
-+**Steps:**
-+
-+1. Create a `credential.env` file:
-+
-+```bash
-+touch .env
-+```
-+
-+2. Add the following content to the `credential.env` file (replace values as needed):
-+
-+```env
-+DB_SERVER=XXX - DB login item
-+DB_NAME=XXX - DB login item
-+DB_USERNAME=XXX - DB login item
-+DB_PASSWORD=XXX - DB login item
-+USERNAME_LOGIN=XXX - MV login item
-+PASSWORD_LOGIN=XXX - MV login item
-+```
-+
-+3. **Do not commit** this file to version control. Add `.env` to your `.gitignore`:
-+
-+```bash
-+echo ".env" >> .gitignore
-+```
-+
-+The application will automatically load these environment variables at runtime using `python-dotenv`.
+### 🔐 Environment Variables Setup
+
+To securely store and use sensitive credentials (like database connection info), create a file named `.env` in the root directory of the project.
+
+**Steps:**
+
+1. Create a `credential.env` file:
+
+```bash
+touch .env
+```
+
+2. Add the following content to the `credential.env` file (replace values as needed):
+
+```env
+DB_SERVER=XXX - DB login item
+DB_NAME=XXX - DB login item
+DB_USERNAME=XXX - DB login item
+DB_PASSWORD=XXX - DB login item
+USERNAME_LOGIN=XXX - MV login item
+PASSWORD_LOGIN=XXX - MV login item
+```
+
+3. **Do not commit** this file to version control. Add `.env` to your `.gitignore`:
+
+```bash
+echo ".env" >> .gitignore
+```
+
+The application will automatically load these environment variables at runtime using `python-dotenv`.
 
 ---
 
@@ -144,8 +143,8 @@ Once you've successfully logged in, the application will open in your **web brow
 
 ### 🔴 To Stop the Application
 
-* **Windows**: In the Anaconda Prompt, press `Ctrl + C`
-* **macOS/Linux**: In the Terminal, press `Cmd + C`
+* **Windows**: In the Anaconda Prompt, press `Ctrl  C`
+* **macOS/Linux**: In the Terminal, press `Cmd  C`
 
 This will shut down the application.
 

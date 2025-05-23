@@ -6,13 +6,18 @@ import dash_table
 from datetime import datetime
 from sqlalchemy import create_engine
 from urllib import parse
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv('credential.env') # Specify the path to your .env file
 
 # SQL Connection
 connection_params = {
-    "server": "tcp:gcc-db-v100.database.windows.net,1433",
-    "database": "GCC-db-100",
-    "username": "rrivera",
-    "password": "Mistymutt_1",
+    "server": os.getenv("DB_SERVER"),
+    "database": os.getenv("DB_NAME"),
+    "username": os.getenv("DB_USERNAME"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 connecting_string = (
@@ -174,7 +179,7 @@ def update_figure(group, region, instrument, month):
             mode="lines",
             name=label,
             line=dict(color="white" if label == "Current" else None,
-                      width=3 if label == "Current" else 1.5),
+                     width=3 if label == "Current" else 1.5),
             opacity=1.0 if label == "Current" else 0.6
         ))
 
@@ -189,18 +194,59 @@ def update_figure(group, region, instrument, month):
 
     hist_fig = go.Figure()
     if not filtered_df.empty and 'spread' in filtered_df.columns:
-        hist_fig.add_trace(go.Histogram(
-            x=filtered_df["spread"],
-            marker_color='lightblue',
-            nbinsx=50
-        ))
+        spread_values = filtered_df["spread"].dropna()
+
+        if not spread_values.empty:
+            # Calculate statistics
+            latest_spread = spread_values.iloc[-1] if not spread_values.empty else None
+            mean_spread = spread_values.mean()
+            median_spread = spread_values.median()
+            std_dev = spread_values.std()
+            std_dev_1_plus = mean_spread + std_dev
+            std_dev_1_minus = mean_spread - std_dev
+            std_dev_2_plus = mean_spread + (2 * std_dev)
+            std_dev_2_minus = mean_spread - (2 * std_dev)
+
+            hist_fig.add_trace(go.Histogram(
+                x=spread_values,
+                marker_color='lightblue',
+                nbinsx=50,
+                name='Spread Distribution'
+            ))
+
+            # Add vertical lines for statistics
+            if latest_spread is not None:
+                hist_fig.add_vline(x=latest_spread, line_dash="dash", line_color="orange",
+                                  annotation_text=f"Latest Spread: {latest_spread:.2f}",
+                                  annotation_position="top right")
+            hist_fig.add_vline(x=mean_spread, line_dash="dash", line_color="red",
+                                annotation_text=f"Mean: {mean_spread:.2f}",
+                                annotation_position="top left")
+            hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="purple",
+                                annotation_text=f"Median: {median_spread:.2f}",
+                                annotation_position="top center")
+
+            # Standard Deviations
+            hist_fig.add_vline(x=std_dev_1_plus, line_dash="dot", line_color="lightgreen",
+                                annotation_text=f"+1 Std Dev: {std_dev_1_plus:.2f}",
+                                annotation_position="bottom right")
+            hist_fig.add_vline(x=std_dev_1_minus, line_dash="dot", line_color="lightgreen",
+                                annotation_text=f"-1 Std Dev: {std_dev_1_minus:.2f}",
+                                annotation_position="bottom left")
+            hist_fig.add_vline(x=std_dev_2_plus, line_dash="dot", line_color="cyan",
+                                annotation_text=f"+2 Std Dev: {std_dev_2_plus:.2f}",
+                                annotation_position="bottom right")
+            hist_fig.add_vline(x=std_dev_2_minus, line_dash="dot", line_color="cyan",
+                                annotation_text=f"-2 Std Dev: {std_dev_2_minus:.2f}",
+                                annotation_position="bottom left")
 
     hist_fig.update_layout(
-        title="Distribution of Spread (Histogram)",
+        title="Distribution of Spread (Histogram) with Statistics",
         xaxis_title="Spread",
         yaxis_title="Frequency",
         template="plotly_dark",
-        margin=dict(l=40, r=40, t=60, b=40)
+        margin=dict(l=40, r=40, t=60, b=40),
+        showlegend=False # Hide legend for vlines
     )
 
     return fig, hist_fig
@@ -234,4 +280,4 @@ def update_table(group, region, instrument, month):
     return filtered_df.to_dict("records"), columns
 
 if __name__ == '__main__':
-    app.run(port=8052)  # for dash_app_dev_v102.py (preset)
+    app.run(port=8052) # for dash_app_dev_v102.py (preset)

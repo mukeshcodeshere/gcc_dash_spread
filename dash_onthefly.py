@@ -10,14 +10,19 @@ from seasonalFunctions import *
 from sqlalchemy import create_engine
 from urllib import parse
 import time
-from io import StringIO # Import StringIO for pandas.read_json deprecation warning
+from io import StringIO
+from dotenv import load_dotenv # Import load_dotenv
+import os # Import os for accessing environment variables
+
+# Load environment variables from .env file
+load_dotenv('credential.env') # Specify the path to your .env file
 
 # SQL Connection (for expire data only)
 connection_params = {
-    "server": "tcp:gcc-db-v100.database.windows.net,1433",
-    "database": "GCC-db-100",
-    "username": "rrivera",
-    "password": "Mistymutt_1",
+    "server": os.getenv("DB_SERVER"),
+    "database": os.getenv("DB_NAME"),
+    "username": os.getenv("DB_USERNAME"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 connecting_string = (

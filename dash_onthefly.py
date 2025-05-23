@@ -15,7 +15,7 @@ from dotenv import load_dotenv # Import load_dotenv
 import os # Import os for accessing environment variables
 
 # Load environment variables from .env file
-load_dotenv('credential.env') # Specify the path to your .env file
+load_dotenv('credential.env') 
 
 # SQL Connection (for expire data only)
 connection_params = {

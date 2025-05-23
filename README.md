@@ -104,6 +104,8 @@ DB_USERNAME=XXX - DB login item
 DB_PASSWORD=XXX - DB login item
 USERNAME_LOGIN=XXX - MV login item
 PASSWORD_LOGIN=XXX - MV login item
+GvWSUSERNAME=GCC018 - GvWS login item
+GvWSPASSWORD=password - GvWS login item
 ```
 
 3. **Do not upload or commit this credential.env file** 

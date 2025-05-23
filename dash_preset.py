@@ -224,7 +224,7 @@ def update_figure(group, region, instrument, month):
                                 annotation_position="top left")
             hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="purple",
                                 annotation_text=f"Median: {median_spread:.2f}",
-                                annotation_position="top center")
+                                annotation_position="top")
 
             # Standard Deviations
             hist_fig.add_vline(x=std_dev_1_plus, line_dash="dot", line_color="lightgreen",

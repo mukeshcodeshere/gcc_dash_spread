@@ -2,14 +2,16 @@ from GvWSConnection import *
 from datetime import datetime as dt
 import pandas as pd 
 from datetime import timedelta, datetime as dt
-import sys
+from dotenv import load_dotenv
 from gcc_sparta_library import get_mv_data
+import os 
+# Load environment variables from .env file
+load_dotenv('credential.env')
 
-USERNAME = 'GCC018'
-PASSWORD = 'password'
+GvWSUSERNAME = os.getenv("GvWSUSERNAME"),
+GvWSPASSWORD = os.getenv("GvWSPASSWORD"),
 
-conn = GvWSConnection(USERNAME, PASSWORD)
-
+conn = GvWSConnection(GvWSUSERNAME, GvWSPASSWORD)
 
 def generateYearList(contractMonthsList, yearOffsetList):
     if len(contractMonthsList) != len(yearOffsetList):

@@ -1,6 +1,6 @@
-# 🛢️ Project Spartan – Installation Guide
+# 🛢️ Dash Spread Calculator – Installation Guide
 
-This guide will walk you through setting up and running **Project Spartan** step-by-step.
+This guide will walk you through setting up and running **Dash Spread Calculator** step-by-step.
 
 ---
 
@@ -50,16 +50,16 @@ Now that you're in your **Documents** folder:
 1. Run the following command to clone the repository:
 
    ```bash
-   git clone https://github.com/mukeshcodeshere/project_spartan.git
+   git clone https://github.com/mukeshcodeshere/gcc_dash_spread.git
    ```
 
 2. Navigate into the project folder:
 
    ```bash
-   cd project_spartan
+   cd gcc_dash_spread
    ```
 
-   The project will now be stored in your **Documents** folder, inside the `project_spartan` directory.
+   The project will now be stored in your **Documents** folder, inside the `gcc_dash_spread` directory.
 
 ---
 
@@ -78,14 +78,46 @@ This sets up a clean Python environment named `work`.
 
 ## 📦 Step 6: Install Project Dependencies
 
-Make sure you're inside the `project_spartan` folder, then install the required dependencies by running:
+Make sure you're inside the `gcc_dash_spread` folder, then install the required dependencies by running:
 
 ```bash
 pip install -r requirements.txt
 ```
 
 ---
-Here's your updated section incorporating the extended and refined information:
+@@
+ ## Step 7: Environment Variable Setup Instructions
+
++### 🔐 Environment Variables Setup
++
++To securely store and use sensitive credentials (like database connection info), create a file named `.env` in the root directory of the project.
++
++**Steps:**
++
++1. Create a `credential.env` file:
++
++```bash
++touch .env
++```
++
++2. Add the following content to the `credential.env` file (replace values as needed):
++
++```env
++DB_SERVER=XXX - DB login item
++DB_NAME=XXX - DB login item
++DB_USERNAME=XXX - DB login item
++DB_PASSWORD=XXX - DB login item
++USERNAME_LOGIN=XXX - MV login item
++PASSWORD_LOGIN=XXX - MV login item
++```
++
++3. **Do not commit** this file to version control. Add `.env` to your `.gitignore`:
++
++```bash
++echo ".env" >> .gitignore
++```
++
++The application will automatically load these environment variables at runtime using `python-dotenv`.
 
 ---
 
@@ -94,30 +126,19 @@ Here's your updated section incorporating the extended and refined information:
 To start the application, run the following command in your terminal:
 
 ```bash
-python run_app.py
+python dash_launcher.py
 ```
 
-You will be prompted to enter your **MV Username and Password**.
-
-### Possible Login Errors
-
-There are two common issues you might encounter at this stage:
-
-#### 🔹 1. Incorrect Credentials
-
-* **What happens**: The app prompts you to log in again.
-* **Fix**: Make sure you enter the correct username and password.
-
-#### 🔹 2. MV Server Issue
-
-* **What happens**: You entered valid credentials, but the login still fails due to a timeout issue on the MV server.
-* **Fix**: Wait **2–3 minutes** and try again. This issue usually resolves itself shortly.
+You will be prompted to enter your calculation mode.
 
 ---
 
-## ✅ Done!
+## ✅ Success!
 
-Once login is successful, the application will automatically open in your **web browser**.
+Once you've successfully logged in, the application will open in your **web browser** at:
+
+👉 [http://localhost:8050](http://localhost:8050)
+
 
 ---
 
@@ -133,3 +154,11 @@ This will shut down the application.
 If you need help, please reach out to the Analysts.
 
 ---
+
+
+## ▶️ Step X: To update presets
+
+To update the presets, modify the PriceAnalyzeIn.csv with all the presets you want and run the following command in your terminal:
+
+```bash
+python PriceBuilding_v101.py

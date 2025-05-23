@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Feb 24 11:43:55 2025
-
-@author: RaulRivera
-"""
-
 from seasonalFunctions import *
 from itertools import product
 import pandas as pd 
@@ -12,21 +5,21 @@ from datetime import datetime, timedelta
 import ast
 from sqlalchemy import create_engine, text
 from urllib import parse
+from dotenv import load_dotenv
+import os
 
-
-
-#%% Database Info
+# Load environment variables from .env file
+load_dotenv("credential.env")
 
 schemaName = 'Reference'
 table_Name = 'FuturesExpire'
 
-
-# Connection parameters for SQL Server
+# Get connection parameters from environment variables
 connection_params = {
-    "server": "tcp:gcc-db-v100.database.windows.net,1433",
-    "database": "GCC-db-100",
-    "username": "rrivera",
-    "password": "Mistymutt_1",
+    "server": os.getenv("DB_SERVER"),
+    "database": os.getenv("DB_NAME"),
+    "username": os.getenv("DB_USERNAME"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 connecting_string = (
@@ -41,7 +34,8 @@ connecting_string = (
 )
 
 params = parse.quote_plus(connecting_string)
-engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}",fast_executemany=True)
+engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}", fast_executemany=True)
+
 
 #%% Expire Schedule 
 futuresContractDict= {'F':{'abr':'Jan','num':1},'G':{'abr':'Feb','num':2},'H':{'abr':'Mar','num':3},'J':{'abr':'Apr','num':4},

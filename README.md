@@ -106,6 +106,10 @@ USERNAME_LOGIN=XXX - MV login item
 PASSWORD_LOGIN=XXX - MV login item
 GvWSUSERNAME=GCC018 - GvWS login item
 GvWSPASSWORD=password - GvWS login item
+reference_schemaName=SQL Table Name
+future_expiry_table_Name=SQL Table Name
+tradepricetable=SQL Table Name
+contract_margin_table=SQL Table Name
 ```
 
 3. **Do not upload or commit this credential.env file** 

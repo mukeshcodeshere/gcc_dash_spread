@@ -11,8 +11,8 @@ import os
 # Load environment variables from .env file
 load_dotenv("credential.env")
 
-schemaName = 'Reference'
-table_Name = 'FuturesExpire'
+reference_schemaName = os.getenv("reference_schemaName")
+future_expiry_table_Name = os.getenv("future_expiry_table_Name")
 
 # Get connection parameters from environment variables
 connection_params = {
@@ -36,17 +36,13 @@ connecting_string = (
 params = parse.quote_plus(connecting_string)
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}", fast_executemany=True)
 
-
-#%% Expire Schedule 
 futuresContractDict= {'F':{'abr':'Jan','num':1},'G':{'abr':'Feb','num':2},'H':{'abr':'Mar','num':3},'J':{'abr':'Apr','num':4},
                       'K':{'abr':'May','num':5},'M':{'abr':'Jun','num':6},'N':{'abr':'Jul','num':7},'Q':{'abr':'Aug','num':8},
                       'U':{'abr':'Sep','num':9},'V':{'abr':'Oct','num':10},'X':{'abr':'Nov','num':11},'Z':{'abr':'Dec','num':12}}
 
-query = "SELECT * FROM [Reference].[FuturesExpire]" 
+query = f"SELECT * FROM {reference_schemaName}.{future_expiry_table_Name}" 
 
 expire = pd.read_sql(query,con=engine)
-
-#%%
 
 df_out = pd.DataFrame({})
 
@@ -55,9 +51,6 @@ curvesIn = pd.read_csv("PriceAnalyzerIn.csv", header=0)
 
 # Loop through each row in the DataFrame
 for index, row in curvesIn.iterrows():
-    
-    print(row)
-    
     variables = {}
     for name in curvesIn.columns:
         value = row[name]
@@ -68,30 +61,22 @@ for index, row in curvesIn.iterrows():
             parsed_value = value
         variables[name] = parsed_value
 
-
-
     yearList = generateYearList(variables['contractMonthsList'], variables['yearOffsetList'])
-    
     pricesDict,expireList = generate_contract_data(variables['tickerList'], variables['contractMonthsList'], yearList, variables['weightsList'], variables['convList'], variables['yearsBack'], conn)
-    
-    
-    # # Example usage
     validate_contract_data(pricesDict)
-    
-    
     
     # Construct combined list to filter valid contracts
     combined_list = [variables['rollFlag'] + exp for exp in expireList]
-    
+
     # Construct full ticker-month-year strings
     expire['TickerMonthYear'] = expire['Ticker'] + expire['MonthCode'] + expire['LastTrade'].str.slice(-2)
     
     # Filter expire matrix to only contracts in our target list
     expireMatrix = expire[expire['TickerMonthYear'].isin(combined_list)]
+
     
     # Construct front ticker label
     expireMatrix['frontTicker'] = variables['tickerList'][0] + expire['MonthCode'] + expire['LastTrade'].str.slice(-2)
-    
     # Initialize a dictionary to store spreads keyed by year
     spread_dict = {}
     
@@ -121,20 +106,19 @@ for index, row in curvesIn.iterrows():
         # Drop rows with missing values across the instruments
         combined_df.dropna(inplace=True)
         combined_df["spread"] = combined_df.sum(axis=1, skipna=True)
-    
+
         # Extract year from contract suffix (e.g., Z25 → 2025)
         year_suffix = first_contracts[0][-2:]  # Last two characters
         spread_year = 2000 + int(year_suffix) if int(year_suffix) < 50 else 1900 + int(year_suffix)
     
         spread_dict[spread_year] = combined_df
-        
-        
+
+   
     expireMatrix["LastTrade"] = pd.to_datetime(expireMatrix["LastTrade"])
-    rows_to_drop = 5
+    rows_to_drop = 0#5
     today = pd.Timestamp.today()
-    
-    # Create a mapping from year to last trade date (e.g., 2025 → Timestamp)
-    expireMatrix["Year"] = expireMatrix["LastTrade"].dt.year
+    current_month = today.month
+    expireMatrix["Year"] = expireMatrix["LastTrade"].dt.year 
     year_to_last_trade = expireMatrix.set_index("Year")["LastTrade"].to_dict()
     
     # New dictionary to hold filtered spread data
@@ -144,34 +128,35 @@ for index, row in curvesIn.iterrows():
         if year_key in year_to_last_trade:
             last_trade_date = year_to_last_trade[year_key]
     
-            # Keep rows up to and including LastTrade
-            df = df[df.index <= last_trade_date]
-    
+            # Keep rows up to and including LastTrade - redundant?
+            #df = df[df.index <= last_trade_date]
             # Only drop last N rows if LastTrade is in the past
-            if last_trade_date < today and len(df) > rows_to_drop:
-                df = df.iloc[:-rows_to_drop]
+            # if last_trade_date < today and len(df) > rows_to_drop:
+            #     df = df.iloc[:-rows_to_drop]
     
             df['LastTrade'] = last_trade_date
             filtered_spread_dict[year_key] = df
     
-    
-    
     # Prepare spread-only DataFrame for database export
     combined_spread_list = []
-    
+    #filtered_spread_dict = spread_dict
     for year, df in filtered_spread_dict.items():
         if not df.empty and 'spread' in df.columns:
-            df_copy = df[['spread', 'LastTrade']].copy()
+            first__contract_col = df.columns[0]
+            GroupYear = 2000 + int(first__contract_col[-2:])
+            df['GroupYear'] = GroupYear
+            df_copy = df[['spread', 'LastTrade','GroupYear']].copy() 
+            #df_copy = df[['spread','GroupYear']].copy() 
             df_copy["Year"] = str(year)  # Use year as RollTicker
             df_copy["Date"] = df_copy.index
             combined_spread_list.append(df_copy.reset_index(drop=True))
-    
+
     # Concatenate all into one DataFrame
     final_spread_df = pd.concat(combined_spread_list, ignore_index=True)
     
     # Reorder columns
-    final_spread_df = final_spread_df[['Date', 'Year', 'spread', 'LastTrade']]
-    
+    final_spread_df = final_spread_df[['Date', 'Year', 'spread', 'LastTrade','GroupYear']]
+
     # Add metadata fields
     final_spread_df['InstrumentName'] = variables['Name']
     final_spread_df['Group'] = variables['group']
@@ -181,11 +166,9 @@ for index, row in curvesIn.iterrows():
     final_spread_df['Desc'] = variables['desc']
 
     df_out = pd.concat([df_out,final_spread_df],axis = 0)
+    # print("====================")
+    # print(df_out.sort_values(by='Date', ascending=False))
+    # print("====================")
 
 with engine.begin() as connection:
-    
    df_out.to_sql(name='contractMargins', schema='TradePriceAnalyzer', con=connection, if_exists='replace', index=False, chunksize=10000)
-
-# # # with engine.begin() as connection:
-    
-# # #     final_spread_df.to_sql(name='contractMargins', schema='TradePriceAnalyzer', con=connection, if_exists='append', index=False, chunksize=10000)

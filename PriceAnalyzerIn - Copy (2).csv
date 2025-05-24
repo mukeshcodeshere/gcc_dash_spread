@@ -1,0 +1,6 @@
+Name,tickerList,contractMonthsList,yearOffsetList,weightsList,convList,rollFlag,months,desc,group,region,yearsBack
+NWE HSFO - NWE Naphtha,"['#BRGBM','#ICENBAM']","['F','F']","[0, 0]","[1,-1]","[0.15748,1]",HO,F,100%NWE HSFO - 100% NWE Nap,HeavyDistillates,NWE,10
+Crude Oil Timing Spread,"['/CL','/CL']","['F','Z']","[0, 0]","[1,-1]","[1,1]",HO,F,100%CLF - 100%Z,Crude,Crude,10
+TD25 - TC5,"['#ICEWF5M','#ICEWMJM']","['Q','X']","[0, 0]","[1,-1]","[1,1]",HO,Q/X,100%TD25 - 100%TC5,Freight,Global,3
+
+

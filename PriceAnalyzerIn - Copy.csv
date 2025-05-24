@@ -18,8 +18,3 @@ TD25 - TD20,"['#ICEWF5M','#ICEWACM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M
 TD25 - TC5,"['#ICEWF5M','#ICEWMJM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD25 - 100%TC5,Freight,Global,3
 TD20 - TC20,"['#ICEWACM','#ICEWALM']","['M','M']","[0, 0]","[1,-1]","[1,1]",HO,M/M,100%TD20 - 100%TC20,Freight,Global,3
 HO Timing ,"['/HO','/HO']","['M','Z']","[0, 0]","[1,-1]","[1,1]",HO,M/Z,100%HOM - 100%HOZ,MiddleDistillates,US,10
-HO Timing dec jan ,"['/HO','/HO']","['Z','F']","[0, 0]","[1,-1]","[1,1]",HO,Z/F,100%HOM - 100%HOZ,MiddleDistillates,US,10
-HO Timing dec june ,"['/HO','/HO']","['Z','M']","[0, 0]","[1,-1]","[1,1]",HO,Z/M,100%HOM - 100%HOZ,MiddleDistillates,US,10
-HO Timing mar april ,"['/HO','/HO']","['H','J']","[0, 0]","[1,-1]","[1,1]",HO,H/J,100%HOM - 100%HOZ,MiddleDistillates,US,10
-HO Timing april may ,"['/HO','/HO']","['J','K']","[0, 0]","[1,-1]","[1,1]",HO,J/K,100%HOM - 100%HOZ,MiddleDistillates,US,10
-HO Timing may june ,"['/HO','/HO']","['K','M']","[0, 0]","[1,-1]","[1,1]",HO,K/M,100%HOM - 100%HOZ,MiddleDistillates,US,10

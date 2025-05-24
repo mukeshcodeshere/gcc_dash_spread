@@ -1,29 +1,197 @@
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, html, dcc, Input, Output, State, callback_context
+from dash import Dash, html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 import dash_table
-from datetime import datetime as dt, timedelta
+from datetime import datetime, timedelta
 import ast
-# Assuming seasonalfunctions_sparta.py is in the same directory or accessible
-from seasonalFunctions import *
 from sqlalchemy import create_engine
 from urllib import parse
-import time
-from io import StringIO
-from dotenv import load_dotenv # Import load_dotenv
-import os # Import os for accessing environment variables
+import sys
+import calendar
 
-# Load environment variables from .env file
-load_dotenv('credential.env')
+# --- Start of seasonalFunctions.py content (modified for direct use) ---
+# Note: GvWSConnection and gcc_sparta_library are assumed to be available
+# in the environment or need to be provided. For this standalone script,
+# a placeholder for get_mv_data is used if the actual library isn't present.
 
-# SQL Connection (for expire data only)
+try:
+    from gcc_sparta_library import get_mv_data
+except ImportError:
+    print("Warning: 'gcc_sparta_library' not found. Using a dummy get_mv_data function.")
+    # Dummy function for demonstration if gcc_sparta_library is not available
+    def get_mv_data(symbol, data_type, start_date, end_date):
+        print(f"Dummy get_mv_data called for {symbol} from {start_date} to {end_date}")
+        # Return a dummy DataFrame for testing purposes
+        dates = pd.date_range(start=start_date, end=end_date, freq='D')
+        if len(dates) == 0:
+            return pd.DataFrame()
+        dummy_data = {
+            'date': dates,
+            'close': [100 + i * 0.5 + (i % 10) * 2 for i in range(len(dates))],
+            'open': [99 + i * 0.5 for i in range(len(dates))],
+            'high': [101 + i * 0.5 + 5 for i in range(len(dates))],
+            'low': [98 + i * 0.5 - 5 for i in range(len(dates))],
+            'volume': [1000 + i * 10 for i in range(len(dates))]
+        }
+        return 0
+
+
+def generateYearList(contractMonthsList, yearOffsetList):
+    if len(contractMonthsList) != len(yearOffsetList):
+        raise ValueError("contractMonthsList and yearOffsetList must be the same length.")
+
+    if any(offset < 0 for offset in yearOffsetList):
+        raise ValueError("yearOffsetList cannot contain negative values.")
+
+    current_year = datetime.today().year
+    current_month = datetime.today().month
+
+    year_list = []
+    futuresContractDict= {'F':{'abr':'Jan','num':1},'G':{'abr':'Feb','num':2},'H':{'abr':'Mar','num':3},'J':{'abr':'Apr','num':4},
+                          'K':{'abr':'May','num':5},'M':{'abr':'Jun','num':6},'N':{'abr':'Jul','num':7},'Q':{'abr':'Aug','num':8},
+                          'U':{'abr':'Sep','num':9},'V':{'abr':'Oct','num':10},'X':{'abr':'Nov','num':11},'Z':{'abr':'Dec','num':12}}
+
+    for i, contract_month_code in enumerate(contractMonthsList):
+        offset = yearOffsetList[i]
+        target_year = current_year + offset
+
+        contract_month_num = None
+        for key, value in futuresContractDict.items():
+            if key == contract_month_code:
+                contract_month_num = value['num']
+                break
+        
+        if contract_month_num is None:
+            raise ValueError(f"Invalid contract month code: {contract_month_code}")
+
+        if contract_month_num <= current_month:
+            target_year += 1
+        
+        year_list.append(str(target_year)[-2:])
+
+    return year_list
+
+
+def generate_contract_data_sparta(tickerList, contractMonthsList, yearList, weightsList, convList, yearsBack):
+    """
+    Generates contract data for a list of tickers, fetching daily prices using get_mv_data.
+    Retries fetching up to 3 times if data is not returned.
+
+    :param tickerList: List of ticker symbols (e.g., ['SPX', 'NDX']).
+    :param contractMonthsList: List of contract months corresponding to each ticker.
+    :param yearList: List of starting years for contracts corresponding to each ticker.
+    :param weightsList: List of weights corresponding to each ticker.
+    :param convList: List of conversion factors corresponding to each ticker.
+    :param yearsBack: Number of years to go back for contract data.
+    :return: A tuple containing:
+             - contract_data (dict): A dictionary where keys are tickers and values are
+                                     dictionaries containing 'Prices df', 'ContractList',
+                                     'Weights', and 'Conversion'.
+             - expireList (list): A list of the last 3 characters of each contract from the first ticker.
+    """
+    contract_data = {}
+    expireList = None
+
+    past_date = datetime.today().replace(year=datetime.today().year - (yearsBack + 2))
+    start_date_obj = past_date
+    end_date_obj = datetime.now()
+
+    for i, t in enumerate(tickerList): # Changed to tickerList
+        contractMonth = contractMonthsList[i]
+        startYear = int(yearList[i])
+        contractList = [f"{t}{contractMonth}{str(startYear - y).zfill(2)}" for y in range(yearsBack)]
+
+        all_contract_dfs = []
+        for contract_symbol in contractList:
+            success = False
+            for attempt in range(3):
+                try:
+                    contract_df = get_mv_data(
+                        symbol=contract_symbol,
+                        data_type='daily',
+                        start_date=start_date_obj,
+                        end_date=end_date_obj
+                    )
+
+                    if contract_df is not None and not contract_df.empty:
+                        contract_df = contract_df.copy()
+                        contract_df['symbol'] = contract_symbol
+                        all_contract_dfs.append(contract_df)
+                        print(f"Successfully retrieved daily data for contract: {contract_symbol}")
+                        success = True
+                        break
+                    else:
+                        print(f"Attempt {attempt + 1}: Empty DataFrame for {contract_symbol}")
+                except Exception as e:
+                    print(f"Attempt {attempt + 1}: Error retrieving {contract_symbol}: {e}")
+                import time
+                time.sleep(1)
+
+            if not success:
+                print(f"Failed to retrieve data for {contract_symbol} after 3 attempts.")
+
+        if not all_contract_dfs:
+            print(f"No daily data retrieved for any contracts of ticker {t}. Skipping this ticker.")
+            continue
+
+        df = pd.concat(all_contract_dfs, ignore_index=True)
+        df.columns = [col.lower() for col in df.columns]
+        df.rename(columns={'date': 'Date', 'close': 'close'}, inplace=True)
+
+        required_cols = ['symbol', 'Date', 'close']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            print(f"Warning: Missing columns {missing_cols} in DataFrame for {t}. Skipping this ticker.")
+            continue
+
+        df['WeightedPrice'] = df['close'] * convList[i] * weightsList[i] # Use lists here
+
+        contract_data[t] = {
+            'Prices df': df,
+            "ContractList": contractList,
+            "Weights": weightsList[i],
+            "Conversion": convList[i]
+        }
+
+        if i == 0:
+            expireList = [c[-3:] for c in contractList]
+
+    return contract_data, expireList
+
+
+def validate_contract_data(contract_data):
+    contract_lengths = {ticker: len(data['ContractList']) for ticker, data in contract_data.items()}
+
+    unique_lengths = set(contract_lengths.values())
+    if len(unique_lengths) == 1:
+        print(f"\u2705 All ContractList lengths are equal: {unique_lengths.pop()}")
+    else:
+        print("\u274C ContractList lengths are not equal!")
+        for ticker, length in contract_lengths.items():
+            print(f"{ticker}: {length} contracts")
+
+    missing_data = []
+    for ticker, data in contract_data.items():
+        if 'Weights' not in data or 'Conversion' not in data:
+            missing_data.append(ticker)
+
+    if missing_data:
+        print("\u274C The following tickers are missing Weights or Conversion:")
+        for ticker in missing_data:
+            print(f"{ticker}: Missing {['Weights' if 'Weights' not in contract_data[ticker] else 'Conversion'][0]}")
+    else:
+        print("\u2705 All tickers have Weights and Conversion.")
+
+# --- End of seasonalFunctions.py content ---
+
+
+# SQL Connection (kept for completeness, but not used for data loading in this app)
 connection_params = {
-    "server": os.getenv("DB_SERVER"),
-    "database": os.getenv("DB_NAME"),
-    "username": os.getenv("DB_USERNAME"),
-    "password": os.getenv("DB_PASSWORD"),
+    "server": "tcp:gcc-db-v100.database.windows.net,1433",
+    "database": "GCC-db-100",
+    "username": "rrivera",
+    "password": "Mistymutt_1",
 }
 
 connecting_string = (
@@ -40,550 +208,410 @@ connecting_string = (
 params = parse.quote_plus(connecting_string)
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}", fast_executemany=True)
 
-# Load expire data
-query = "SELECT * FROM [Reference].[FuturesExpire]"
-expire = pd.read_sql(query, con=engine)
+# Futures contract dictionary (from PriceBuilding_v101.py)
+futuresContractDict= {'F':{'abr':'Jan','num':1},'G':{'abr':'Feb','num':2},'H':{'abr':'Mar','num':3},'J':{'abr':'Apr','num':4},
+                      'K':{'abr':'May','num':5},'M':{'abr':'Jun','num':6},'N':{'abr':'Jul','num':7},'Q':{'abr':'Aug','num':8},
+                      'U':{'abr':'Sep','num':9},'V':{'abr':'Oct','num':10},'X':{'abr':'Nov','num':11},'Z':{'abr':'Dec','num':12}}
 
 # Initialize Dash app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 app.layout = dbc.Container([
-    html.H2("Real-time Seasonal Spread Analysis", className="mb-4"),
+    html.H2("Seasonal Spread Analysis (On-the-Fly)", className="my-4 text-center"),
 
-    # Input Section
-    dbc.Card([
-        dbc.CardHeader("Spread Configuration"),
+    dbc.Card(
         dbc.CardBody([
+            html.H4("Input Parameters", className="card-title"),
             dbc.Row([
-                dbc.Col([
-                    html.Label("Instrument Name:", className="fw-bold"),
-                    dcc.Input(id='name-input', type='text', placeholder='e.g., Crude July Dec',
-                             className='form-control', value='Crude July Dec')
-                ], width=3),
-                dbc.Col([
-                    html.Label("Group:", className="fw-bold"),
-                    dcc.Input(id='group-input', type='text', placeholder='e.g., Energy',
-                             className='form-control', value='Energy')
-                ], width=2),
-                dbc.Col([
-                    html.Label("Region:", className="fw-bold"),
-                    dcc.Input(id='region-input', type='text', placeholder='e.g., US',
-                             className='form-control', value='US')
-                ], width=2),
-                dbc.Col([
-                    html.Label("Month:", className="fw-bold"),
-                    dcc.Input(id='month-input', type='text', placeholder='e.g., May',
-                             className='form-control', value='May')
-                ], width=2),
-                dbc.Col([
-                    html.Label("Roll Flag:", className="fw-bold"),
-                    dcc.Input(id='rollflag-input', type='text', placeholder='e.g., HO',
-                             className='form-control', value='HO')
-                ], width=3),
-            ], className="mb-3"),
-
+                dbc.Col(dbc.Label("Name:")),
+                dbc.Col(dcc.Input(id='input-name', type='text', value='NWE HSFO - NWE Naphtha', className="mb-2")),
+                dbc.Col(dbc.Label("Ticker List (e.g., ['#BRGBM','ICENBAM']):")),
+                dbc.Col(dcc.Input(id='input-tickerlist', type='text', value="['#BRGBM','#ICENBAM']", className="mb-2")),
+            ]),
             dbc.Row([
-                dbc.Col([
-                    html.Label("Ticker List:", className="fw-bold"),
-                    dcc.Input(id='ticker-input', type='text',
-                             placeholder="['/CL', '/CL'] - comma separated, use quotes",
-                             className='form-control', value="['/CL', '/CL']")
-                ], width=4),
-                dbc.Col([
-                    html.Label("Contract Months:", className="fw-bold"),
-                    dcc.Input(id='contract-months-input', type='text',
-                             placeholder="['M', 'Z'] - comma separated, use quotes",
-                             className='form-control', value="['M', 'Z']")
-                ], width=4),
-                dbc.Col([
-                    html.Label("Year Offsets:", className="fw-bold"),
-                    dcc.Input(id='year-offset-input', type='text',
-                             placeholder="[0, 0] - comma separated",
-                             className='form-control', value="[0, 0]")
-                ], width=4),
-            ], className="mb-3"),
-
+                dbc.Col(dbc.Label("Contract Months (e.g., ['V','V']):")),
+                dbc.Col(dcc.Input(id='input-contractmonths', type='text', value="['V','V']", className="mb-2")),
+                dbc.Col(dbc.Label("Year Offset (e.g., [0, 0]):")),
+                dbc.Col(dcc.Input(id='input-yearoffset', type='text', value="[0, 0]", className="mb-2")),
+            ]),
             dbc.Row([
-                dbc.Col([
-                    html.Label("Weights:", className="fw-bold"),
-                    dcc.Input(id='weights-input', type='text',
-                             placeholder="[1, -1] - comma separated",
-                             className='form-control', value="[1, -1]")
-                ], width=3),
-                dbc.Col([
-                    html.Label("Conversion Factors:", className="fw-bold"),
-                    dcc.Input(id='conv-input', type='text',
-                             placeholder="[1, 1] - comma separated",
-                             className='form-control', value="[1, 1]")
-                ], width=3),
-                dbc.Col([
-                    html.Label("Years Back:", className="fw-bold"),
-                    dcc.Input(id='years-back-input', type='number',
-                             placeholder='5', className='form-control', value=5)
-                ], width=2),
-                dbc.Col([
-                    html.Label("Description:", className="fw-bold"),
-                    dcc.Input(id='desc-input', type='text',
-                             placeholder='Spread description',
-                             className='form-control', value='Crude Oil Spread')
-                ], width=4),
-            ], className="mb-3"),
-
+                dbc.Col(dbc.Label("Weights (e.g., [1,-1]):")),
+                dbc.Col(dcc.Input(id='input-weights', type='text', value="[1,-1]", className="mb-2")),
+                dbc.Col(dbc.Label("Conversion (e.g., [0.15748,1]):")),
+                dbc.Col(dcc.Input(id='input-conv', type='text', value="[0.15748,1]", className="mb-2")),
+            ]),
             dbc.Row([
-                dbc.Col([
-                    dbc.Button("Calculate Spread", id='calculate-btn', color='primary',
-                              className='btn-lg', n_clicks=0)
-                ], width=12, className="text-center")
-            ])
-        ])
-    ], className="mb-4"),
-
-    # Status and Loading
-    dcc.Loading(
-        id="loading",
-        children=[
-            html.Div(id='status-output', className="mb-3"),
-            dcc.Graph(id='spread-figure'),
-            html.Br(),
-            dcc.Graph(id='spread-histogram'),
-        ],
-        type="default",
+                dbc.Col(dbc.Label("Roll Flag (e.g., HO):")),
+                dbc.Col(dcc.Input(id='input-rollflag', type='text', value="HO", className="mb-2")),
+                dbc.Col(dbc.Label("Month (e.g., V):")),
+                dbc.Col(dcc.Input(id='input-month', type='text', value="V", className="mb-2")),
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Label("Description (e.g., 100%NWE HSFO - 100% NWE Nap):")),
+                dbc.Col(dcc.Input(id='input-desc', type='text', value="100%NWE HSFO - 100% NWE Nap", className="mb-2")),
+                dbc.Col(dbc.Label("Group (e.g., HeavyDistillates):")),
+                dbc.Col(dcc.Input(id='input-group', type='text', value="HeavyDistillates", className="mb-2")),
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Label("Region (e.g., NWE):")),
+                dbc.Col(dcc.Input(id='input-region', type='text', value="NWE", className="mb-2")),
+                dbc.Col(dbc.Label("Years Back (e.g., 10):")),
+                dbc.Col(dcc.Input(id='input-yearsback', type='number', value=10, className="mb-2")),
+            ]),
+            dbc.Button("Generate Plots", id='generate-button', color="primary", className="mt-3"),
+        ]),
+        className="mb-4"
     ),
 
-    html.H4("Data Preview"),
-    dash_table.DataTable(
-        id='data-preview',
-        page_size=15,
-        style_table={'overflowX': 'auto'},
-        style_cell={
-            'backgroundColor': 'black',
-            'color': 'white',
-            'textAlign': 'left',
-            'fontSize': 12,
-        },
-        style_header={
-            'backgroundColor': 'rgb(30, 30, 30)',
-            'fontWeight': 'bold'
-        }
-    ),
+    html.Div(id='output-container'), # Container for plots and table
 
-    # Store calculated data
-    dcc.Store(id='calculated-data')
+], fluid=True, className="p-4")
 
-], fluid=True)
-
-def parse_input_list(input_str):
-    """Parse string input to list, handling both formats"""
-    try:
-        return ast.literal_eval(input_str)
-    except:
-        # Try comma-separated format
-        try:
-            return [x.strip().strip("'\"") for x in input_str.split(',')]
-        except:
-            return []
 
 @app.callback(
-    Output('calculated-data', 'data'),
-    Output('status-output', 'children'),
-    Input('calculate-btn', 'n_clicks'),
-    State('name-input', 'value'),
-    State('group-input', 'value'),
-    State('region-input', 'value'),
-    State('month-input', 'value'),
-    State('rollflag-input', 'value'),
-    State('ticker-input', 'value'),
-    State('contract-months-input', 'value'),
-    State('year-offset-input', 'value'),
-    State('weights-input', 'value'),
-    State('conv-input', 'value'),
-    State('years-back-input', 'value'),
-    State('desc-input', 'value'),
+    Output('output-container', 'children'),
+    Input('generate-button', 'n_clicks'),
+    State('input-name', 'value'),
+    State('input-tickerlist', 'value'),
+    State('input-contractmonths', 'value'),
+    State('input-yearoffset', 'value'),
+    State('input-weights', 'value'),
+    State('input-conv', 'value'),
+    State('input-rollflag', 'value'),
+    State('input-month', 'value'),
+    State('input-desc', 'value'),
+    State('input-group', 'value'),
+    State('input-region', 'value'),
+    State('input-yearsback', 'value'),
     prevent_initial_call=True
 )
-def calculate_spread_data(n_clicks, name, group, region, month, roll_flag,
-                         ticker_str, contract_months_str, year_offset_str,
-                         weights_str, conv_str, years_back, desc):
-
-    if n_clicks == 0:
-        return {}, ""
+def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_offset_str,
+                  weights_str, conv_str, roll_flag, month, desc, group, region, years_back):
+    if n_clicks is None:
+        return html.Div()
 
     try:
-        # Parse inputs
-        ticker_list = parse_input_list(ticker_str)
-        contract_months_list = parse_input_list(contract_months_str)
-        year_offset_list = parse_input_list(year_offset_str)
-        weights_list = parse_input_list(weights_str)
-        conv_list = parse_input_list(conv_str)
+        # Parse string inputs to Python lists
+        tickerList = ast.literal_eval(ticker_list_str)
+        contractMonthsList = ast.literal_eval(contract_months_str)
+        yearOffsetList = ast.literal_eval(year_offset_str)
+        weightsList = ast.literal_eval(weights_str)
+        convList = ast.literal_eval(conv_str)
 
-        # Convert numeric strings to numbers
-        year_offset_list = [int(x) for x in year_offset_list]
-        weights_list = [float(x) for x in weights_list]
-        conv_list = [float(x) for x in conv_list]
+        variables = {
+            'Name': name,
+            'tickerList': tickerList,
+            'contractMonthsList': contractMonthsList,
+            'yearOffsetList': yearOffsetList,
+            'weightsList': weightsList,
+            'convList': convList,
+            'rollFlag': roll_flag,
+            'months': month,
+            'desc': desc,
+            'group': group,
+            'region': region,
+            'yearsBack': years_back
+        }
 
-        # Generate year list
-        year_list = generateYearList(contract_months_list, year_offset_list)
-
-        # Get contract data
-        prices_dict, expire_list = generate_contract_data_sparta(
-            ticker_list, contract_months_list, year_list,
-            weights_list, conv_list, years_back
+        # --- Data Engineering Logic from PriceBuilding_v101.py ---
+        yearList = generateYearList(variables['contractMonthsList'], variables['yearOffsetList'])
+        
+        # Use generate_contract_data_sparta
+        pricesDict, expireList = generate_contract_data_sparta(
+            variables['tickerList'], variables['contractMonthsList'], yearList,
+            variables['weightsList'], variables['convList'], variables['yearsBack']
         )
+        validate_contract_data(pricesDict)
+        
+        # Dummy expire matrix for on-the-fly calculation (not using SQL table)
+        # In a real scenario, you might need a way to get this data without SQL.
+        # For now, we'll construct a minimal one based on the generated contracts.
+        expire_data = []
+        if expireList:
+            for i, contract_suffix in enumerate(expireList):
+                # Extract MonthCode and Year from suffix (e.g., 'V25' -> 'V', '25')
+                month_code = contract_suffix[0]
+                year_suffix = contract_suffix[1:]
+                full_year = 2000 + int(year_suffix) if int(year_suffix) < 50 else 1900 + int(year_suffix)
+                
+                # Find the last day of the month for the contract's expiry
+                # This is a simplification; actual last trade dates would come from a real expire matrix.
+                last_day_of_month = calendar.monthrange(full_year, futuresContractDict[month_code]['num'])[1]
+                last_trade_date = datetime(full_year, futuresContractDict[month_code]['num'], last_day_of_month)
 
-        if not prices_dict:
-            return {}, dbc.Alert("No data retrieved for any contracts!", color="danger")
-
-        # Validate contract data
-        validate_contract_data(prices_dict)
-
-        # Build spreads (similar to PriceBuilding_v101.py logic)
-        combined_list = [roll_flag + exp for exp in expire_list]
-
-        # Filter expire matrix
-        expire['TickerMonthYear'] = expire['Ticker'] + expire['MonthCode'] + expire['LastTrade'].str.slice(-2)
-        expire_matrix = expire[expire['TickerMonthYear'].isin(combined_list)]
-
-        print(f"DEBUG: Combined list: {combined_list}")
-        print(f"DEBUG: Expire matrix matches: {len(expire_matrix)}")
+                # Assuming Ticker is the first ticker in the list for this example
+                ticker_prefix = variables['tickerList'][0]
+                expire_data.append({
+                    'Ticker': ticker_prefix,
+                    'MonthCode': month_code,
+                    'LastTrade': last_trade_date.strftime('%Y-%m-%d'), # Format as string for consistency
+                    'TickerMonthYear': f"{ticker_prefix}{month_code}{year_suffix}"
+                })
+        
+        expireMatrix = pd.DataFrame(expire_data)
+        expireMatrix["LastTrade"] = pd.to_datetime(expireMatrix["LastTrade"])
+        expireMatrix["Year"] = expireMatrix["LastTrade"].dt.year
+        year_to_last_trade = expireMatrix.set_index("Year")["LastTrade"].to_dict()
 
         spread_dict = {}
-        # Get the number of contracts from the first ticker's ContractList
-        # This assumes all tickers will have the same number of contracts in their list
-        num_contracts = len(next(iter(prices_dict.values()))["ContractList"])
+        if pricesDict:
+            # Assume all product lists are same length
+            # This needs to handle cases where pricesDict might be empty or have varying lengths
+            # if not pricesDict or not next(iter(pricesDict.values()))["ContractList"]:
+            #     raise ValueError("No contract data generated.")
+            
+            # Find the maximum number of contracts across all tickers
+            num_contracts = 0
+            for ticker_key, data in pricesDict.items():
+                if data and "ContractList" in data:
+                    num_contracts = max(num_contracts, len(data["ContractList"]))
 
-        # Iterate over each contract index
-        for i in range(num_contracts):
-            combined_df = pd.DataFrame()
-            first_contracts = []
+            if num_contracts == 0:
+                return html.Div(dbc.Alert("No contract data available to calculate spreads.", color="warning"))
 
-            for ticker, data in prices_dict.items():
-                if i < len(data["ContractList"]):
-                    first_contract = data["ContractList"][i]
-                    first_contracts.append(first_contract)
+            for i in range(num_contracts):
+                combined_df = pd.DataFrame()
+                first_contracts = []
 
-                    temp_df = data["Prices df"][data["Prices df"]['symbol'] == first_contract][["Date", "WeightedPrice"]].copy()
-                    print(f"DEBUG: Contract {first_contract} has {len(temp_df)} data points")
+                for ticker, data in pricesDict.items():
+                    if i < len(data["ContractList"]):
+                        first_contract = data["ContractList"][i]
+                        first_contracts.append(first_contract)
 
-                    if temp_df.empty:
-                        print(f"WARNING: No data for contract {first_contract}")
-                        continue
+                        temp_df = data["Prices df"][data["Prices df"]['symbol'] == first_contract][["Date", "WeightedPrice"]].copy()
+                        temp_df["Date"] = pd.to_datetime(temp_df["Date"])
+                        temp_df.set_index("Date", inplace=True)
+                        temp_df.rename(columns={"WeightedPrice": first_contract}, inplace=True)
 
-                    temp_df["Date"] = pd.to_datetime(temp_df["Date"])
-                    temp_df.set_index("Date", inplace=True)
-                    temp_df.rename(columns={"WeightedPrice": first_contract}, inplace=True)
+                        if combined_df.empty:
+                            combined_df = temp_df
+                        else:
+                            combined_df = combined_df.join(temp_df, how="outer")
 
-                    if combined_df.empty:
-                        combined_df = temp_df
-                    else:
-                        combined_df = combined_df.join(temp_df, how="outer")
+                if not combined_df.empty:
+                    combined_df.dropna(inplace=True)
+                    if not combined_df.empty:
+                        combined_df["spread"] = combined_df.sum(axis=1, skipna=True)
 
-            if combined_df.empty:
-                print(f"WARNING: No combined data for contract set {i}")
-                continue
+                        year_suffix = first_contracts[0][-2:]
+                        spread_year = 2000 + int(year_suffix) if int(year_suffix) < 50 else 1900 + int(year_suffix)
+                        spread_dict[spread_year] = combined_df
 
-            # Drop rows with missing values and calculate spread
-            print(f"DEBUG: Combined DF shape before dropna: {combined_df.shape}")
-            combined_df.dropna(inplace=True)
-            print(f"DEBUG: Combined DF shape after dropna: {combined_df.shape}")
+        filtered_spread_dict = {}
+        today = pd.Timestamp.today().normalize()
 
-            if combined_df.empty:
-                print(f"WARNING: No data after dropna for contract set {i}")
-                continue
+        for year_key, df in spread_dict.items():
+            if year_key in year_to_last_trade:
+                last_trade_date = year_to_last_trade[year_key]
+                df['LastTrade'] = last_trade_date
+                filtered_spread_dict[year_key] = df
 
-            combined_df["spread"] = combined_df.sum(axis=1, skipna=True)
-
-            # Extract year from contract suffix
-            if first_contracts:
-                year_suffix = first_contracts[0][-2:]
-                spread_year = 2000 + int(year_suffix) if int(year_suffix) < 50 else 1900 + int(year_suffix)
-                spread_dict[spread_year] = combined_df
-                print(f"DEBUG: Added spread data for year {spread_year} with {len(combined_df)} points")
-
-        print(f"DEBUG: Spread dict has {len(spread_dict)} years")
-
-        # If no expire matrix matches, use all spreads without filtering
-        if expire_matrix.empty:
-            print("WARNING: No expire matrix matches, using all spread data without filtering")
-            filtered_spread_dict = {}
-            # Add LastTrade column for each spread
-            for year_key, df in spread_dict.items():
-                df_copy = df.copy()
-                # For historical years, set LastTrade to the max date in the DF for that year
-                # This simulates historical expiration if actual expire data is missing
-                if year_key <  dt.today().year: # This year and prior are considered historical
-                    df_copy['LastTrade'] = df_copy.index.max()
-                else: # Future year, treat as "current" until it becomes historical
-                     df_copy['LastTrade'] = pd.Timestamp.today() # Default to today if no specific future expire
-                filtered_spread_dict[year_key] = df_copy
-        else:
-            # Filter spreads based on expiry dates
-            expire_matrix["LastTrade"] = pd.to_datetime(expire_matrix["LastTrade"])
-            rows_to_drop = 5
-            today = pd.Timestamp.today()
-
-            expire_matrix["Year"] = expire_matrix["LastTrade"].dt.year
-            year_to_last_trade = expire_matrix.set_index("Year")["LastTrade"].to_dict()
-
-            filtered_spread_dict = {}
-
-            for year_key, df in spread_dict.items():
-                df_copy = df.copy()  # Make a copy to avoid modifying original
-
-                if year_key in year_to_last_trade:
-                    last_trade_date = year_to_last_trade[year_key]
-                    df_copy = df_copy[df_copy.index <= last_trade_date]
-
-                    if last_trade_date < today and len(df_copy) > rows_to_drop:
-                        df_copy = df_copy.iloc[:-rows_to_drop]
-
-                    df_copy['LastTrade'] = last_trade_date
-                else:
-                    # If no expire date match, use current date as LastTrade (as a fallback)
-                    df_copy['LastTrade'] = pd.Timestamp.today()
-
-                filtered_spread_dict[year_key] = df_copy
-
-        print(f"DEBUG: Filtered spread dict has {len(filtered_spread_dict)} years")
-
-        # Prepare final DataFrame
         combined_spread_list = []
-
         for year, df in filtered_spread_dict.items():
             if not df.empty and 'spread' in df.columns:
+                first__contract_col = df.columns[0]
+                #GroupYear = 2000 + int(first__contract_col[-2:])
+                #df_copy = df[['spread', 'LastTrade','GroupYear']].copy()
                 df_copy = df[['spread', 'LastTrade']].copy()
                 df_copy["Year"] = str(year)
                 df_copy["Date"] = df_copy.index
                 combined_spread_list.append(df_copy.reset_index(drop=True))
-                print(f"DEBUG: Added {len(df_copy)} rows for year {year}")
-
-        print(f"DEBUG: Combined spread list has {len(combined_spread_list)} dataframes")
 
         if not combined_spread_list:
-            debug_info = [
-                f"Prices dict keys: {list(prices_dict.keys())}",
-                f"Expire list: {expire_list}",
-                f"Combined list: {combined_list}",
-                f"Expire matrix matches: {len(expire_matrix)}",
-                f"Spread dict years: {list(spread_dict.keys())}",
-                f"Filtered spread dict years: {list(filtered_spread_dict.keys())}"
-            ]
-            return {}, dbc.Alert([
-                html.H5("❌ No spread data generated!"),
-                html.P("Debug information:"),
-                html.Ul([html.Li(info) for info in debug_info])
-            ], color="warning")
+            return html.Div(dbc.Alert("No spread data could be generated with the provided inputs.", color="warning"))
 
         final_spread_df = pd.concat(combined_spread_list, ignore_index=True)
-        final_spread_df = final_spread_df[['Date', 'Year', 'spread', 'LastTrade']]
+        final_spread_df = final_spread_df[['Date', 'Year', 'spread', 'LastTrade']]#,'GroupYear']]
+        final_spread_df['InstrumentName'] = variables['Name']
+        final_spread_df['Group'] = variables['group']
+        final_spread_df['Region'] = variables['region']
+        final_spread_df['Month'] = variables['months']
+        final_spread_df['RollFlag'] = variables['rollFlag']
+        final_spread_df['Desc'] = variables['desc']
 
-        # Add metadata
-        final_spread_df['InstrumentName'] = name
-        final_spread_df['Group'] = group
-        final_spread_df['Region'] = region
-        final_spread_df['Month'] = month
-        final_spread_df['RollFlag'] = roll_flag
-        final_spread_df['Desc'] = desc
+        data = final_spread_df.copy() # Use this as the data for plotting
 
-        # Convert to JSON for storage
-        data_json = final_spread_df.to_json(date_format='iso', orient='records')
+        # --- Plotting Logic from dash_preset.py ---
+        filtered_df = data.copy()
+        filtered_df = filtered_df.sort_values("Date")
+        today = pd.Timestamp.today().normalize()
 
-        success_msg = dbc.Alert([
-            html.H5("✅ Calculation Successful!", className="alert-heading"),
-            html.P(f"Generated spread data for {len(final_spread_df)} data points across {len(filtered_spread_dict)} contract years.")
-        ], color="success")
+        historical_df = filtered_df[filtered_df['LastTrade'] <= today].copy()
+        current_df = filtered_df[filtered_df['LastTrade'] > today].copy()
 
-        return data_json, success_msg
+        fig = go.Figure()
+        seasonal_data = {}
 
-    except Exception as e:
-        import traceback
-        error_msg = dbc.Alert([
-            html.H5("❌ Calculation Failed!", className="alert-heading"),
-            html.P(f"Error: {str(e)}"),
-            html.Hr(),
-            html.P("Full traceback:", className="fw-bold"),
-            html.Pre(traceback.format_exc(), style={'font-size': '10px', 'white-space': 'pre-wrap'})
-        ], color="danger")
-        return {}, error_msg
+        for year in historical_df['Year'].unique():
+            year_group = historical_df[historical_df['Year'] == year].copy()
+            last_trade = year_group['LastTrade'].max()
+            year_filtered = year_group[year_group['Date'] <= last_trade].sort_values('Date').tail(252).copy()
+            if len(year_filtered) == 252:
+                year_filtered = year_filtered.reset_index(drop=True)
+                year_filtered['TradingDay'] = range(1, 253)
+                seasonal_data[str(year)] = year_filtered
 
-@app.callback(
-    Output('spread-figure', 'figure'),
-    Output('spread-histogram', 'figure'),
-    Input('calculated-data', 'data')
-)
-def update_figures(data_json):
-    if not data_json:
-        empty_fig = go.Figure()
-        empty_fig.update_layout(
-            title="No data to display",
-            template='plotly_dark'
-        )
-        return empty_fig, empty_fig
+        if not historical_df.empty and not current_df.empty:
+            last_hist_trade = historical_df['LastTrade'].max()
+            # Ensure next_month_start is a Timestamp before adding MonthBegin
+            if isinstance(last_hist_trade, pd.Timestamp):
+                next_month_start = (last_hist_trade + pd.offsets.MonthBegin(1)).normalize()
+            else: # Fallback if last_hist_trade is not a Timestamp
+                next_month_start = pd.Timestamp(datetime.today().replace(day=1) + timedelta(days=32)).normalize() # Approx next month start
 
-    filtered_df = pd.read_json(StringIO(data_json), orient='records')
-    filtered_df["Date"] = pd.to_datetime(filtered_df["Date"])
-    filtered_df["LastTrade"] = pd.to_datetime(filtered_df["LastTrade"])
-    filtered_df = filtered_df.sort_values("Date")
-    today = pd.Timestamp.today().normalize()
+            current_filtered = current_df[current_df['Date'] >= next_month_start].sort_values('Date').head(252).copy()
+            if not current_filtered.empty:
+                current_filtered = current_filtered.reset_index(drop=True)
+                current_filtered['TradingDay'] = range(1, len(current_filtered) + 1)
+                seasonal_data["Current"] = current_filtered
 
-    historical_df = filtered_df[filtered_df['LastTrade'] <= today].copy()
-    current_df = filtered_df[filtered_df['LastTrade'] > today].copy()
-
-    fig = go.Figure()
-    seasonal_data = {}
-
-    for year in sorted(historical_df['Year'].unique()):
-        year_group = historical_df[historical_df['Year'] == year].copy()
-        last_trade_for_year = year_group['LastTrade'].max()
-        year_filtered = year_group[year_group['Date'] <= last_trade_for_year].sort_values('Date').tail(252).copy()
-
-        if len(year_filtered) == 252:
-            year_filtered = year_filtered.reset_index(drop=True)
-            year_filtered['TradingDay'] = range(1, 253)
-            seasonal_data[str(year)] = year_filtered
-
-    if not current_df.empty:
-        last_hist_trade_date = historical_df['LastTrade'].max() if not historical_df.empty else None
-        
-        if last_hist_trade_date is not None and not pd.isna(last_hist_trade_date):
-            next_month_start = (last_hist_trade_date + pd.offsets.MonthBegin(1)).normalize()
-        else:
-            next_month_start = current_df['Date'].min().normalize()
-
-        current_filtered = current_df[current_df['Date'] >= next_month_start].sort_values('Date').head(252).copy()
-
-        if not current_filtered.empty:
-            current_filtered = current_filtered.reset_index(drop=True)
-            current_filtered['TradingDay'] = range(1, len(current_filtered) + 1)
-            seasonal_data["Current"] = current_filtered
-
-    if not seasonal_data:
-        fig.add_trace(go.Scatter(
-            x=filtered_df["Date"],
-            y=filtered_df["spread"],
-            mode="lines",
-            name="All Data (Time Series)",
-            line=dict(color="lightblue", width=2)
-        ))
-        fig.update_layout(
-            title="Spread Time Series (No Seasonal Data Available)",
-            xaxis_title="Date",
-            yaxis_title="Spread",
-            margin=dict(l=40, r=40, t=60, b=40),
-            template='plotly_dark'
-        )
-    else:
-        for label, df in seasonal_data.items():
+        if not seasonal_data:
             fig.add_trace(go.Scatter(
-                x=df["TradingDay"],
-                y=df["spread"],
+                x=filtered_df["Date"],
+                y=filtered_df["spread"],
                 mode="lines",
-                name=label,
-                line=dict(color="white" if label == "Current" else None,
-                                width=3 if label == "Current" else 1.5),
-                opacity=1.0 if label == "Current" else 0.6
+                name="All Data (Time Series)",
+                line=dict(color="lightblue", width=2)
             ))
+            fig.update_layout(
+                title="Spread Time Series (No Seasonal Data Available)",
+                xaxis_title="Date",
+                yaxis_title="Spread",
+                margin=dict(l=40, r=40, t=60, b=40),
+                template='plotly_dark'
+            )
+        else:
+            for label, df in seasonal_data.items():
+                fig.add_trace(go.Scatter(
+                    x=df["TradingDay"],
+                    y=df["spread"],
+                    mode="lines",
+                    name=label,
+                    line=dict(color="white" if label == "Current" else None,
+                              width=3 if label == "Current" else 1.5),
+                    opacity=1.0 if label == "Current" else 0.6
+                ))
 
-        fig.update_layout(
-            title="Seasonal Spread by Year",
-            xaxis_title="Trading Day (1 to 252)",
-            yaxis_title="Spread",
-            margin=dict(l=40, r=40, t=60, b=40),
-            legend_title="Season",
-            template='plotly_dark'
-        )
+            fig.update_layout(
+                title="Seasonal Spread by Year",
+                xaxis_title="Trading Day (1 to 252)",
+                yaxis_title="Spread",
+                margin=dict(l=40, r=40, t=60, b=40),
+                legend_title="Season",
+                template='plotly_dark'
+            )
 
-    hist_fig = go.Figure()
-    if not filtered_df.empty and 'spread' in filtered_df.columns:
-        spread_data = filtered_df["spread"].dropna() # Ensure no NaNs for stats
-
-        if not spread_data.empty: # Only proceed if there's data after dropping NaNs
-            # Calculate statistics on the *entire available spread data*
-            mean_spread = spread_data.mean()
-            median_spread = spread_data.median()
-            std_dev_spread = spread_data.std()
-
-            # Determine the "latest spread" more robustly:
-            # Prefer the latest value from the 'Current' seasonal data if available,
-            # otherwise, use the absolute latest from the entire filtered_df.
-            latest_spread_value = np.nan
-            if "Current" in seasonal_data and not seasonal_data["Current"].empty:
-                latest_spread_value = seasonal_data["Current"]["spread"].iloc[-1]
-            elif not spread_data.empty:
-                latest_spread_value = spread_data.iloc[-1]
-
-            # First and second deviation values
-            first_dev_plus = mean_spread + std_dev_spread
-            first_dev_minus = mean_spread - std_dev_spread
-            second_dev_plus = mean_spread + (2 * std_dev_spread)
-            second_dev_minus = mean_spread - (2 * std_dev_spread)
+        hist_fig = go.Figure()
+        if not filtered_df.empty and 'spread' in filtered_df.columns:
+            spread_values = filtered_df["spread"]
+            
+            latest_spread = spread_values.iloc[-1] if not spread_values.empty else None
+            mean_spread = spread_values.mean()
+            median_spread = spread_values.median()
+            std_dev = spread_values.std()
 
             hist_fig.add_trace(go.Histogram(
-                x=spread_data,
+                x=spread_values,
                 marker_color='lightblue',
                 nbinsx=50,
                 name='Spread Distribution'
             ))
 
-            # Add vertical lines and annotations
-            # Mean
-            hist_fig.add_vline(x=mean_spread, line_dash="solid", line_color="red", line_width=2,
-                                annotation_text=f"Mean: {mean_spread:.2f}",
-                                annotation_position="top left", annotation_font_color="red")
+            if latest_spread is not None:
+                hist_fig.add_vline(x=latest_spread, line_dash="dash", line_color="yellow",
+                                   annotation_text=f"Latest: {latest_spread:.2f}",
+                                   annotation_position="top right", annotation_font_color="yellow")
+            
+            hist_fig.add_vline(x=mean_spread, line_dash="dash", line_color="red",
+                               annotation_text=f"Mean: {mean_spread:.2f}",
+                               annotation_position="top left", annotation_font_color="red")
+            
+            hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="green",
+                               annotation_text=f"Median: {median_spread:.2f}",
+                               annotation_position="top right", annotation_font_color="green")
+            
+            hist_fig.add_vline(x=mean_spread - std_dev, line_dash="dot", line_color="orange",
+                               annotation_text=f"-1 Std Dev: {(mean_spread - std_dev):.2f}",
+                               annotation_position="bottom left", annotation_font_color="orange")
+            hist_fig.add_vline(x=mean_spread + std_dev, line_dash="dot", line_color="orange",
+                               annotation_text=f"+1 Std Dev: {(mean_spread + std_dev):.2f}",
+                               annotation_position="bottom right", annotation_font_color="orange")
+                               
+            hist_fig.add_vline(x=mean_spread - 2 * std_dev, line_dash="dot", line_color="purple",
+                               annotation_text=f"-2 Std Dev: {(mean_spread - 2 * std_dev):.2f}",
+                               annotation_position="bottom left", annotation_font_color="purple")
+            hist_fig.add_vline(x=mean_spread + 2 * std_dev, line_dash="dot", line_color="purple",
+                               annotation_text=f"+2 Std Dev: {(mean_spread + 2 * std_dev):.2f}",
+                               annotation_position="bottom right", annotation_font_color="purple")
 
-            # Median
-            hist_fig.add_vline(x=median_spread, line_dash="dash", line_color="green", line_width=2,
-                                annotation_text=f"Median: {median_spread:.2f}",
-                                annotation_position="top right", annotation_font_color="green")
+            stats_text = (
+                f"Latest Spread: {latest_spread:.2f}<br>"
+                f"Mean: {mean_spread:.2f}<br>"
+                f"Median: {median_spread:.2f}<br>"
+                f"Std Dev: {std_dev:.2f}"
+            )
+            
+            hist_fig.add_annotation(
+                text=stats_text,
+                xref="paper", yref="paper",
+                x=0.98, y=0.98,
+                showarrow=False,
+                align="left",
+                bordercolor="white",
+                borderwidth=1,
+                bgcolor="rgba(0,0,0,0.7)",
+                font=dict(color="white", size=10)
+            )
 
-            # Latest Spread Value (if valid)
-            if not np.isnan(latest_spread_value):
-                hist_fig.add_vline(x=latest_spread_value, line_dash="dot", line_color="yellow", line_width=2,
-                                    annotation_text=f"Latest: {latest_spread_value:.2f}",
-                                    annotation_position="bottom right", annotation_font_color="yellow")
+        hist_fig.update_layout(
+            title="Distribution of Spread (Histogram) with Key Statistics",
+            xaxis_title="Spread",
+            yaxis_title="Frequency",
+            template="plotly_dark",
+            margin=dict(l=40, r=40, t=60, b=40)
+        )
 
-            # First Standard Deviations
-            hist_fig.add_vline(x=first_dev_plus, line_dash="dot", line_color="orange", line_width=1,
-                                annotation_text=f"+1 Std Dev: {first_dev_plus:.2f}",
-                                annotation_position="top", annotation_font_color="orange")
-            hist_fig.add_vline(x=first_dev_minus, line_dash="dot", line_color="orange", line_width=1,
-                                annotation_text=f"-1 Std Dev: {first_dev_minus:.2f}",
-                                annotation_position="bottom", annotation_font_color="orange")
+        # DataTable: Filtered Data Preview
+        filtered_df_table = data.copy()
+        filtered_df_table["LastTrade"] = pd.to_datetime(filtered_df_table["LastTrade"], errors="coerce")
+        filtered_df_table["Date"] = pd.to_datetime(filtered_df_table["Date"], errors="coerce")
+        filtered_df_table["Year"] = filtered_df_table["Date"].dt.year
 
-            # Second Standard Deviations
-            hist_fig.add_vline(x=second_dev_plus, line_dash="dot", line_color="purple", line_width=1,
-                                annotation_text=f"+2 Std Dev: {second_dev_plus:.2f}",
-                                annotation_position="top", annotation_font_color="purple")
-            hist_fig.add_vline(x=second_dev_minus, line_dash="dot", line_color="purple", line_width=1,
-                                annotation_text=f"-2 Std Dev: {second_dev_minus:.2f}",
-                                annotation_position="bottom", annotation_font_color="purple")
+        if filtered_df_table.empty:
+            table_data = []
+            table_columns = []
+        else:
+            table_columns = [{"name": i, "id": i} for i in filtered_df_table.columns]
+            table_data = filtered_df_table.to_dict("records")
 
-    hist_fig.update_layout(
-        title="Distribution of Spread (Histogram) with Statistics",
-        xaxis_title="Spread",
-        yaxis_title="Frequency",
-        template="plotly_dark",
-        margin=dict(l=40, r=40, t=60, b=40),
-        showlegend=False
-    )
+        return html.Div([
+            html.Br(),
+            dcc.Graph(id='spread-figure', figure=fig),
+            html.Br(),
+            dcc.Graph(id='spread-histogram', figure=hist_fig),
+            html.H4("Generated Data Preview", className="mt-4"),
+            dash_table.DataTable(
+                id='data-preview',
+                data=table_data,
+                columns=table_columns,
+                page_size=10,
+                style_table={'overflowX': 'auto'},
+                style_cell={
+                    'backgroundColor': 'black',
+                    'color': 'white',
+                    'textAlign': 'left',
+                    'fontSize': 12,
+                },
+                style_header={
+                    'backgroundColor': 'rgb(30, 30, 30)',
+                    'fontWeight': 'bold'
+                }
+            )
+        ])
 
-    return fig, hist_fig
+    except Exception as e:
+        return html.Div(dbc.Alert(f"Error processing input or generating data: {e}", color="danger"))
 
-@app.callback(
-    Output('data-preview', 'data'),
-    Output('data-preview', 'columns'),
-    Input('calculated-data', 'data')
-)
-def update_table(data_json):
-    if not data_json:
-        return [], []
-
-    data = pd.read_json(StringIO(data_json), orient='records')
-    data["Date"] = pd.to_datetime(data["Date"])
-    data["LastTrade"] = pd.to_datetime(data["LastTrade"])
-    data = data.sort_values("Date")
-
-    columns = [{"name": i, "id": i} for i in data.columns]
-    return data.to_dict("records"), columns
 
 if __name__ == '__main__':
-    app.run(port=8051)
+    app.run(debug=True, port=8051)

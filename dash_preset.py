@@ -328,4 +328,4 @@ def update_table(group, region, instrument, month):
     return filtered_df.to_dict("records"), columns
 
 if __name__ == '__main__':
-    app.run(port=8052)
+    app.run(debug=True, port=8051)

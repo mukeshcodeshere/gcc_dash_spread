@@ -614,4 +614,4 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8051)
+    app.run(debug=True, port=8052)

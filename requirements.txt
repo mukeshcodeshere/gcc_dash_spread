@@ -6,4 +6,5 @@ seaborn==0.13.2
 statsmodels==0.14.4
 scipy==1.15.2
 plotly==6.0.1
-#pywin32
+dash==3.0.4
+pywin32

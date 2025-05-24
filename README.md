@@ -136,6 +136,13 @@ Once you've successfully logged in, the application will open in your **web brow
 
 👉 [http://localhost:8050](http://localhost:8050)
 
+Alternatively, the link might appear like this in your **Anaconda Prompt** or terminal:
+
+```
+http://127.0.0.1:8050/
+```
+
+Both links point to the same local application and can be opened in your browser.
 
 ---
 

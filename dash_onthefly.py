@@ -5,8 +5,6 @@ import dash_bootstrap_components as dbc
 import dash_table
 from datetime import datetime, timedelta
 import ast
-from sqlalchemy import create_engine
-from urllib import parse
 import sys
 import calendar
 
@@ -26,15 +24,9 @@ except ImportError:
         dates = pd.date_range(start=start_date, end=end_date, freq='D')
         if len(dates) == 0:
             return pd.DataFrame()
-        dummy_data = {
-            'date': dates,
-            'close': [100 + i * 0.5 + (i % 10) * 2 for i in range(len(dates))],
-            'open': [99 + i * 0.5 for i in range(len(dates))],
-            'high': [101 + i * 0.5 + 5 for i in range(len(dates))],
-            'low': [98 + i * 0.5 - 5 for i in range(len(dates))],
-            'volume': [1000 + i * 10 for i in range(len(dates))]
-        }
-        return 0
+        # Create a dummy DataFrame with 'Date' and 'close' columns
+        dummy_data = {'Date': dates, 'close': [i * 10 + 50 for i in range(len(dates))]}
+        return pd.DataFrame(dummy_data)
 
 
 def generateYearList(contractMonthsList, yearOffsetList):
@@ -186,86 +178,137 @@ def validate_contract_data(contract_data):
 # --- End of seasonalFunctions.py content ---
 
 
-# SQL Connection (kept for completeness, but not used for data loading in this app)
-connection_params = {
-    "server": "tcp:gcc-db-v100.database.windows.net,1433",
-    "database": "GCC-db-100",
-    "username": "rrivera",
-    "password": "Mistymutt_1",
-}
-
-connecting_string = (
-    f"Driver={{ODBC Driver 18 for SQL Server}};"
-    f"Server={connection_params['server']};"
-    f"Database={connection_params['database']};"
-    f"Uid={connection_params['username']};"
-    f"Pwd={connection_params['password']};"
-    f"Encrypt=yes;"
-    f"TrustServerCertificate=no;"
-    f"Connection Timeout=30;"
-)
-
-params = parse.quote_plus(connecting_string)
-engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}", fast_executemany=True)
-
 # Futures contract dictionary (from PriceBuilding_v101.py)
 futuresContractDict= {'F':{'abr':'Jan','num':1},'G':{'abr':'Feb','num':2},'H':{'abr':'Mar','num':3},'J':{'abr':'Apr','num':4},
                       'K':{'abr':'May','num':5},'M':{'abr':'Jun','num':6},'N':{'abr':'Jul','num':7},'Q':{'abr':'Aug','num':8},
                       'U':{'abr':'Sep','num':9},'V':{'abr':'Oct','num':10},'X':{'abr':'Nov','num':11},'Z':{'abr':'Dec','num':12}}
 
-# Initialize Dash app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+# Initialize Dash app with a dark theme
+app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 
 app.layout = dbc.Container([
-    html.H2("Seasonal Spread Analysis (On-the-Fly)", className="my-4 text-center"),
+    # Changed text-primary to text-danger for red font
+    html.H2("Seasonal Spread Analysis (On-the-Fly)", className="my-4 text-center text-danger"),
+    html.Hr(className="my-3"),
 
     dbc.Card(
         dbc.CardBody([
-            html.H4("Input Parameters", className="card-title"),
+            # Changed text-info to text-danger for red font
+            html.H4("Input Parameters", className="card-title text-danger mb-4"),
             dbc.Row([
-                dbc.Col(dbc.Label("Name:")),
-                dbc.Col(dcc.Input(id='input-name', type='text', value='NWE HSFO - NWE Naphtha', className="mb-2")),
-                dbc.Col(dbc.Label("Ticker List (e.g., ['#BRGBM','ICENBAM']):")),
-                dbc.Col(dcc.Input(id='input-tickerlist', type='text', value="['#BRGBM','#ICENBAM']", className="mb-2")),
-            ]),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Name:", html_for="input-name", className="fw-bold"),
+                        dcc.Input(id='input-name', type='text', value='NWE HSFO - NWE Naphtha', className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Ticker List (e.g., ['#BRGBM','ICENBAM']):", html_for="input-tickerlist", className="fw-bold"),
+                        dcc.Input(id='input-tickerlist', type='text', value="['#BRGBM','#ICENBAM']", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-2"),
             dbc.Row([
-                dbc.Col(dbc.Label("Contract Months (e.g., ['V','V']):")),
-                dbc.Col(dcc.Input(id='input-contractmonths', type='text', value="['V','V']", className="mb-2")),
-                dbc.Col(dbc.Label("Year Offset (e.g., [0, 0]):")),
-                dbc.Col(dcc.Input(id='input-yearoffset', type='text', value="[0, 0]", className="mb-2")),
-            ]),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Contract Months (e.g., ['V','V']):", html_for="input-contractmonths", className="fw-bold"),
+                        dcc.Input(id='input-contractmonths', type='text', value="['V','V']", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Year Offset (e.g., [0, 0]):", html_for="input-yearoffset", className="fw-bold"),
+                        dcc.Input(id='input-yearoffset', type='text', value="[0, 0]", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-2"),
             dbc.Row([
-                dbc.Col(dbc.Label("Weights (e.g., [1,-1]):")),
-                dbc.Col(dcc.Input(id='input-weights', type='text', value="[1,-1]", className="mb-2")),
-                dbc.Col(dbc.Label("Conversion (e.g., [0.15748,1]):")),
-                dbc.Col(dcc.Input(id='input-conv', type='text', value="[0.15748,1]", className="mb-2")),
-            ]),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Weights (e.g., [1,-1]):", html_for="input-weights", className="fw-bold"),
+                        dcc.Input(id='input-weights', type='text', value="[1,-1]", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Conversion (e.g., [0.15748,1]):", html_for="input-conv", className="fw-bold"),
+                        dcc.Input(id='input-conv', type='text', value="[0.15748,1]", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-2"),
             dbc.Row([
-                dbc.Col(dbc.Label("Roll Flag (e.g., HO):")),
-                dbc.Col(dcc.Input(id='input-rollflag', type='text', value="HO", className="mb-2")),
-                dbc.Col(dbc.Label("Month (e.g., V):")),
-                dbc.Col(dcc.Input(id='input-month', type='text', value="V", className="mb-2")),
-            ]),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Roll Flag (e.g., HO):", html_for="input-rollflag", className="fw-bold"),
+                        dcc.Input(id='input-rollflag', type='text', value="HO", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Month (e.g., V):", html_for="input-month", className="fw-bold"),
+                        dcc.Input(id='input-month', type='text', value="V", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-2"),
             dbc.Row([
-                dbc.Col(dbc.Label("Description (e.g., 100%NWE HSFO - 100% NWE Nap):")),
-                dbc.Col(dcc.Input(id='input-desc', type='text', value="100%NWE HSFO - 100% NWE Nap", className="mb-2")),
-                dbc.Col(dbc.Label("Group (e.g., HeavyDistillates):")),
-                dbc.Col(dcc.Input(id='input-group', type='text', value="HeavyDistillates", className="mb-2")),
-            ]),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Description (e.g., 100%NWE HSFO - 100% NWE Nap):", html_for="input-desc", className="fw-bold"),
+                        dcc.Input(id='input-desc', type='text', value="100%NWE HSFO - 100% NWE Nap", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Group (e.g., HeavyDistillates):", html_for="input-group", className="fw-bold"),
+                        dcc.Input(id='input-group', type='text', value="HeavyDistillates", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-2"),
             dbc.Row([
-                dbc.Col(dbc.Label("Region (e.g., NWE):")),
-                dbc.Col(dcc.Input(id='input-region', type='text', value="NWE", className="mb-2")),
-                dbc.Col(dbc.Label("Years Back (e.g., 10):")),
-                dbc.Col(dcc.Input(id='input-yearsback', type='number', value=10, className="mb-2")),
-            ]),
-            dbc.Button("Generate Plots", id='generate-button', color="primary", className="mt-3"),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Region (e.g., NWE):", html_for="input-region", className="fw-bold"),
+                        dcc.Input(id='input-region', type='text', value="NWE", className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+                dbc.Col(
+                    html.Div([
+                        dbc.Label("Years Back (e.g., 10):", html_for="input-yearsback", className="fw-bold"),
+                        dcc.Input(id='input-yearsback', type='number', value=10, className="mb-3 form-control"),
+                    ]),
+                    md=6
+                ),
+            ], className="mb-4"),
+            dbc.Button("Calculate", id='generate-button', color="danger", className="mt-3 w-100 py-3", style={'fontSize': '1.2rem', 'fontWeight': 'bold'}),
         ]),
-        className="mb-4"
+        className="mb-4 bg-dark text-white shadow-lg border-danger"
     ),
 
-    html.Div(id='output-container'), # Container for plots and table
+    html.Hr(className="my-4"),
 
-], fluid=True, className="p-4")
+    # Enhanced loading animation
+    dcc.Loading(
+        id="loading-output",
+        type="cube",  # More visually interesting spinner
+        children=html.Div(id='output-container', className="mt-4"),
+        color='#ff0000',  # Red color to match theme
+        fullscreen=True,  # Covers whole screen during loading
+        style={'backgroundColor': 'rgba(0, 0, 0, 0.8)'}  # Semi-transparent dark background
+    ),
+
+], fluid=True, className="p-4 bg-dark text-white", style={'minHeight': '100vh'})
 
 
 @app.callback(
@@ -487,7 +530,7 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
                     y=df["spread"],
                     mode="lines",
                     name=label,
-                    line=dict(color="white" if label == "Current" else None,
+                    line=dict(color="cyan" if label == "Current" else None, # Highlight current year
                               width=3 if label == "Current" else 1.5),
                     opacity=1.0 if label == "Current" else 0.6
                 ))
@@ -519,8 +562,8 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
 
             if latest_spread is not None:
                 hist_fig.add_vline(x=latest_spread, line_dash="dash", line_color="yellow",
-                                   annotation_text=f"Latest: {latest_spread:.2f}",
-                                   annotation_position="top right", annotation_font_color="yellow")
+                                 annotation_text=f"Latest: {latest_spread:.2f}",
+                                 annotation_position="top right", annotation_font_color="yellow")
             
             hist_fig.add_vline(x=mean_spread, line_dash="dash", line_color="red",
                                annotation_text=f"Mean: {mean_spread:.2f}",
@@ -536,7 +579,7 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
             hist_fig.add_vline(x=mean_spread + std_dev, line_dash="dot", line_color="orange",
                                annotation_text=f"+1 Std Dev: {(mean_spread + std_dev):.2f}",
                                annotation_position="bottom right", annotation_font_color="orange")
-                               
+                                        
             hist_fig.add_vline(x=mean_spread - 2 * std_dev, line_dash="dot", line_color="purple",
                                annotation_text=f"-2 Std Dev: {(mean_spread - 2 * std_dev):.2f}",
                                annotation_position="bottom left", annotation_font_color="purple")
@@ -576,6 +619,11 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
         filtered_df_table["LastTrade"] = pd.to_datetime(filtered_df_table["LastTrade"], errors="coerce")
         filtered_df_table["Date"] = pd.to_datetime(filtered_df_table["Date"], errors="coerce")
         filtered_df_table["Year"] = filtered_df_table["Date"].dt.year
+        
+        # Format dates for display
+        filtered_df_table['Date'] = filtered_df_table['Date'].dt.strftime('%Y-%m-%d')
+        filtered_df_table['LastTrade'] = filtered_df_table['LastTrade'].dt.strftime('%Y-%m-%d')
+
 
         if filtered_df_table.empty:
             table_data = []
@@ -586,31 +634,62 @@ def update_output(n_clicks, name, ticker_list_str, contract_months_str, year_off
 
         return html.Div([
             html.Br(),
-            dcc.Graph(id='spread-figure', figure=fig),
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Seasonal Spread Plot", className="card-title text-danger mb-3"),
+                    dcc.Graph(id='spread-figure', figure=fig, config={'displayModeBar': False}),
+                ]),
+                className="mb-4 bg-dark text-white shadow-lg border-danger"
+            ),
             html.Br(),
-            dcc.Graph(id='spread-histogram', figure=hist_fig),
-            html.H4("Generated Data Preview", className="mt-4"),
-            dash_table.DataTable(
-                id='data-preview',
-                data=table_data,
-                columns=table_columns,
-                page_size=10,
-                style_table={'overflowX': 'auto'},
-                style_cell={
-                    'backgroundColor': 'black',
-                    'color': 'white',
-                    'textAlign': 'left',
-                    'fontSize': 12,
-                },
-                style_header={
-                    'backgroundColor': 'rgb(30, 30, 30)',
-                    'fontWeight': 'bold'
-                }
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Spread Distribution Histogram", className="card-title text-danger mb-3"),
+                    dcc.Graph(id='spread-histogram', figure=hist_fig, config={'displayModeBar': False}),
+                ]),
+                className="mb-4 bg-dark text-white shadow-lg border-danger"
+            ),
+            html.Br(),
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Generated Data Preview", className="card-title text-danger mb-3"),
+                    dash_table.DataTable(
+                        id='data-preview',
+                        data=table_data,
+                        columns=table_columns,
+                        page_size=10,
+                        style_table={'overflowX': 'auto', 'backgroundColor': 'black', 'border': '1px solid #ff0000'},
+                        style_cell={
+                            'backgroundColor': 'black',
+                            'color': 'white',
+                            'textAlign': 'left',
+                            'fontSize': 12,
+                            'fontFamily': 'Arial, sans-serif',
+                            'borderBottom': '1px solid #333'
+                        },
+                        style_header={
+                            'backgroundColor': 'rgb(30, 30, 30)',
+                            'fontWeight': 'bold',
+                            'color': '#ff0000', # Red color for headers
+                            'borderBottom': '2px solid #ff0000'
+                        },
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': 'rgb(20, 20, 20)'
+                            }
+                        ],
+                        # Enable sorting and filtering
+                        sort_action="native",
+                        filter_action="native",
+                    ),
+                ]),
+                className="mb-4 bg-dark text-white shadow-lg border-danger"
             )
         ])
 
     except Exception as e:
-        return html.Div(dbc.Alert(f"Error processing input or generating data: {e}", color="danger"))
+        return html.Div(dbc.Alert(f"Error processing input or generating data: {e}", color="danger", className="mt-4"))
 
 
 if __name__ == '__main__':

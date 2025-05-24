@@ -36,59 +36,77 @@ def launch_dash_app(script, port, key):
 
 # Layout
 app.layout = html.Div([
+    # Animated background particles
+    html.Div(className="particles"),
+    
     html.Div(
         className="container",
         children=[
-            html.H1(
-                "Welcome to the Spread Calculator",
-                className="title"
-            ),
-            html.P(
-                "Choose your desired calculation mode below and launch the application.",
-                className="subtitle"
-            ),
+            # Header section with icon
+            html.Div([
+                html.Div(className="app-icon"),
+                html.H1(
+                    "Spread Calculator",
+                    className="title"
+                ),
+                html.P(
+                    "Choose your calculation mode and launch the application with style",
+                    className="subtitle"
+                ),
+            ], className="header-section"),
+            
+            # Radio selection with cards
             html.Div(
-                className="radio-group",
+                className="selection-container",
                 children=[
+                    html.H3("Select Calculation Mode", className="section-title"),
                     dcc.RadioItems(
                         id='calc-choice',
                         options=[
-                            {'label': html.Span('Preset Calculation', className="radio-label"), 'value': 'preset'},
-                            {'label': html.Span('On-the-fly Calculation', className="radio-label"), 'value': 'on_the_fly'}
+                            {'label': html.Div([
+                                html.Div(className="card-icon preset-icon"),
+                                html.H4("Preset Calculation", className="card-title"),
+                                html.P("Use predefined calculation parameters", className="card-description")
+                            ], className="option-card"), 'value': 'preset'},
+                            {'label': html.Div([
+                                html.Div(className="card-icon dynamic-icon"),
+                                html.H4("On-the-fly Calculation", className="card-title"),
+                                html.P("Configure parameters dynamically", className="card-description")
+                            ], className="option-card"), 'value': 'on_the_fly'}
                         ],
                         value='preset',
                         className="radio-items"
                     ),
                 ]
             ),
-            html.Button(
-                "Launch Application",
-                id='launch-btn',
-                className="launch-button"
-            ),
+            
+            # Launch button with glow effect
+            html.Div([
+                html.Button([
+                    html.Span("🚀", className="button-icon"),
+                    html.Span("Launch Application", className="button-text")
+                ], id='launch-btn', className="launch-button"),
+            ], className="button-container"),
+            
+            # Status section with enhanced styling
             html.Div(
                 id='status-div',
                 className="status-message"
             ),
+            
+            # Loading with custom animation
             dcc.Loading(
                 id='loading',
                 type='circle',
-                color='#1a6d91',  # A sleek blue for the loading spinner
-                children=html.Div(id='redirect-div')
+                color='#667eea',
+                children=html.Div(id='redirect-div'),
+                className="custom-loading"
             )
         ]
     )
-], style={
-    'fontFamily': 'Roboto, sans-serif',
-    'background': 'linear-gradient(to right, #ece9e6, #ffffff)', # Subtle gradient background
-    'minHeight': '100vh',
-    'display': 'flex',
-    'alignItems': 'center',
-    'justifyContent': 'center',
-    'padding': '20px'
-})
+], className="app-wrapper")
 
-# Add custom CSS for styling
+# Enhanced custom CSS for stunning visuals
 app.index_string = '''
 <!DOCTYPE html>
 <html>
@@ -97,96 +115,355 @@ app.index_string = '''
         <title>{%title%}</title>
         {%favicon%}
         {%css%}
-        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            body {
+            * {
                 margin: 0;
-                font-family: 'Roboto', sans-serif;
-                background: linear-gradient(to right, #ece9e6, #ffffff);
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                overflow-x: hidden;
+            }
+            
+            .app-wrapper {
                 min-height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                position: relative;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 padding: 20px;
             }
-            .container {
-                background-color: #ffffff;
-                border-radius: 12px;
-                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-                padding: 40px;
-                max-width: 600px;
+            
+            /* Animated background particles */
+            .particles {
+                position: absolute;
+                top: 0;
+                left: 0;
                 width: 100%;
-                text-align: center;
-                animation: fadeIn 0.8s ease-out;
+                height: 100%;
+                overflow: hidden;
+                z-index: 1;
             }
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(-20px); }
+            
+            .particles::before,
+            .particles::after {
+                content: '';
+                position: absolute;
+                width: 300px;
+                height: 300px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.1);
+                animation: float 6s ease-in-out infinite;
+            }
+            
+            .particles::before {
+                top: 10%;
+                left: 10%;
+                animation-delay: 0s;
+            }
+            
+            .particles::after {
+                bottom: 10%;
+                right: 10%;
+                animation-delay: 3s;
+                width: 200px;
+                height: 200px;
+            }
+            
+            @keyframes float {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                50% { transform: translateY(-20px) rotate(10deg); }
+            }
+            
+            .container {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border-radius: 24px;
+                box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+                padding: 50px;
+                max-width: 800px;
+                width: 100%;
+                position: relative;
+                z-index: 2;
+                animation: slideUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            
+            @keyframes slideUp {
+                from { opacity: 0; transform: translateY(30px); }
                 to { opacity: 1; transform: translateY(0); }
             }
+            
+            .header-section {
+                text-align: center;
+                margin-bottom: 40px;
+            }
+            
+            .app-icon {
+                width: 80px;
+                height: 80px;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                border-radius: 20px;
+                margin: 0 auto 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+                position: relative;
+            }
+            
+            .app-icon::before {
+                content: '📊';
+                font-size: 36px;
+            }
+            
             .title {
-                color: #2c3e50;
-                font-size: 34px;
+                color: #2d3748;
+                font-size: 42px;
                 font-weight: 700;
                 margin-bottom: 15px;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
+            
             .subtitle {
-                color: #7f8c8d;
+                color: #718096;
                 font-size: 18px;
-                margin-bottom: 30px;
-            }
-            .radio-group {
-                margin-bottom: 30px;
-            }
-            .radio-items .dash-radioitems .radio-label {
-                display: block;
-                background-color: #f8f9fa;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 15px 20px;
-                margin: 10px 0;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                color: #34495e;
-                font-size: 16px;
                 font-weight: 400;
-                text-align: left;
+                line-height: 1.6;
             }
-            .radio-items .dash-radioitems .radio-label:hover {
-                background-color: #e9ecef;
-                border-color: #c9d0d6;
+            
+            .selection-container {
+                margin-bottom: 40px;
             }
-            .radio-items .dash-radioitems input[type="radio"]:checked + .radio-label {
-                background-color: #1a6d91; /* Darker blue for selected */
-                border-color: #1a6d91;
+            
+            .section-title {
+                color: #2d3748;
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 25px;
+                text-align: center;
+            }
+            
+            .radio-items {
+                display: flex;
+                gap: 20px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            
+            .option-card {
+                background: #f7fafc;
+                border: 2px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 30px 25px;
+                width: 280px;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                text-align: center;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .option-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+                transition: left 0.5s;
+            }
+            
+            .option-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+                border-color: #667eea;
+            }
+            
+            .option-card:hover::before {
+                left: 100%;
+            }
+            
+            .card-icon {
+                width: 50px;
+                height: 50px;
+                border-radius: 12px;
+                margin: 0 auto 15px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+            }
+            
+            .preset-icon {
+                background: linear-gradient(135deg, #4facfe, #00f2fe);
+            }
+            
+            .preset-icon::before {
+                content: '⚡';
+            }
+            
+            .dynamic-icon {
+                background: linear-gradient(135deg, #43e97b, #38f9d7);
+            }
+            
+            .dynamic-icon::before {
+                content: '🎛️';
+            }
+            
+            .card-title {
+                color: #2d3748;
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+            
+            .card-description {
+                color: #718096;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+            
+            /* Hide default radio buttons */
+            .radio-items input[type="radio"] {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+            
+            /* Selected state */
+            .radio-items input[type="radio"]:checked + .option-card {
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                border-color: #667eea;
                 color: white;
-                box-shadow: 0 4px 15px rgba(26, 109, 145, 0.3);
+                transform: scale(1.05);
+                box-shadow: 0 20px 50px rgba(102, 126, 234, 0.4);
             }
-            .radio-items .dash-radioitems input[type="radio"] {
-                display: none; /* Hide default radio button */
+            
+            .radio-items input[type="radio"]:checked + .option-card .card-title,
+            .radio-items input[type="radio"]:checked + .option-card .card-description {
+                color: white;
             }
+            
+            .button-container {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            
             .launch-button {
-                background-color: #2980b9; /* A professional blue */
+                background: linear-gradient(135deg, #667eea, #764ba2);
                 color: white;
-                padding: 14px 28px;
+                padding: 18px 40px;
                 border: none;
-                border-radius: 8px;
+                border-radius: 50px;
                 font-size: 18px;
-                font-weight: 500;
+                font-weight: 600;
                 cursor: pointer;
-                transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+                transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                position: relative;
+                overflow: hidden;
             }
+            
+            .launch-button::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+                transition: left 0.5s;
+            }
+            
             .launch-button:hover {
-                background-color: #1a6d91; /* Slightly darker on hover */
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+                transform: translateY(-3px);
+                box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
             }
+            
+            .launch-button:hover::before {
+                left: 100%;
+            }
+            
+            .launch-button:active {
+                transform: translateY(-1px);
+            }
+            
+            .button-icon {
+                font-size: 20px;
+                animation: bounce 2s infinite;
+            }
+            
+            @keyframes bounce {
+                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                40% { transform: translateY(-5px); }
+                60% { transform: translateY(-3px); }
+            }
+            
             .status-message {
-                margin-top: 25px;
-                font-size: 17px;
-                color: #2c3e50;
-                font-weight: 400;
-                min-height: 25px; /* To prevent layout shift */
+                text-align: center;
+                font-size: 16px;
+                font-weight: 500;
+                min-height: 25px;
+                padding: 15px;
+                border-radius: 12px;
+                transition: all 0.3s ease;
+            }
+            
+            .status-message:not(:empty) {
+                background: rgba(102, 126, 234, 0.1);
+                border: 1px solid rgba(102, 126, 234, 0.2);
+                color: #667eea;
+            }
+            
+            .custom-loading {
+                text-align: center;
+                margin-top: 20px;
+            }
+            
+            /* Responsive design */
+            @media (max-width: 768px) {
+                .container {
+                    padding: 30px 25px;
+                    margin: 10px;
+                }
+                
+                .title {
+                    font-size: 32px;
+                }
+                
+                .radio-items {
+                    flex-direction: column;
+                    align-items: center;
+                }
+                
+                .option-card {
+                    width: 100%;
+                    max-width: 300px;
+                }
+            }
+            
+            /* Smooth scrolling */
+            html {
+                scroll-behavior: smooth;
+            }
+            
+            /* Focus states for accessibility */
+            .launch-button:focus,
+            .option-card:focus {
+                outline: 3px solid rgba(102, 126, 234, 0.5);
+                outline-offset: 2px;
             }
         </style>
     </head>
@@ -211,7 +488,7 @@ app.index_string = '''
 )
 def handle_launch(n_clicks, selected_app):
     config = APP_CONFIG.get(selected_app)
-    
+   
     if not config:
         return "Invalid app configuration.", ""
 
@@ -223,7 +500,7 @@ def handle_launch(n_clicks, selected_app):
         threading.Thread(
             target=launch_dash_app, args=(script, port, selected_app), daemon=True
         ).start()
-        time.sleep(5)  # Allow time for app to start
+        time.sleep(7)  # Allow time for app to start
         status_msg = f"✓ {app_name} app started successfully on http://127.0.0.1:{port}"
     else:
         status_msg = f"ⓘ {app_name} app is already running on http://127.0.0.1:{port}"
